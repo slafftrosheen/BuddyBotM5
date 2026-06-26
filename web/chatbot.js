@@ -60,7 +60,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             let messages = [
-                { role: "system", content: "You are BuddyBot, a tactical robot companion. Keep responses short (1-2 sentences), cool, and slightly robotic." }
+                { role: "system", content: `You are BuddyBot, a tactical robot companion. Keep responses short (1-2 sentences), cool, and slightly robotic.
+If the user asks you to perform a physical action, you MUST output a JSON block at the very end of your response inside triple backticks like this:
+\`\`\`json
+{ "action": "drive", "direction": "forward" }
+\`\`\`
+Valid actions: 
+- "drive" (directions: "forward", "backward", "left", "right", "stop")
+- "gesture" (types: "wave", "highfive", "grab", "stop")
+- "emotion" (types: 0=neutral, 1=happy, 2=angry, 3=sleepy, 4=excited, 5=sad, 6=curious, 7=alert)` }
             ];
 
             if (base64Image) {
@@ -90,7 +98,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const data = await response.json();
             if (data.choices && data.choices[0]) {
-                botReply(data.choices[0].message.content);
+                const fullText = data.choices[0].message.content;
+                let replyText = fullText;
+                
+                // Parse JSON Action
+                const jsonMatch = fullText.match(/```json\n([\s\S]*?)\n```/);
+                if (jsonMatch) {
+                    try {
+                        const cmd = JSON.parse(jsonMatch[1]);
+                        executeLLMCommand(cmd);
+                        replyText = fullText.replace(jsonMatch[0], '').trim();
+                    } catch(e) {
+                        console.error("Failed to parse LLM JSON", e);
+                    }
+                }
+                
+                botReply(replyText);
             } else {
                 botReply("Error processing AI response. Check API key.");
             }
@@ -197,6 +220,39 @@ document.addEventListener('DOMContentLoaded', () => {
             newBtnVoice.style.background = '#ff0055';
             recognition.start();
         });
+    }
+
+    // ── Execute Physical Commands from LLM ──
+    function executeLLMCommand(cmd) {
+        if (cmd.action === 'drive') {
+            let s = 0, t = 0;
+            if (cmd.direction === 'forward') s = 80;
+            if (cmd.direction === 'backward') s = -80;
+            if (cmd.direction === 'left') t = -80;
+            if (cmd.direction === 'right') t = 80;
+            
+            fetch('/api/motors', { method: 'POST', body: JSON.stringify({ speed: s, turn: t, trimL:0, trimR:0 }) });
+            if (s !== 0 || t !== 0) {
+                setTimeout(() => {
+                    fetch('/api/motors', { method: 'POST', body: JSON.stringify({ speed: 0, turn: 0, trimL:0, trimR:0 }) });
+                }, 1000); // Drive for 1 sec
+            }
+        } else if (cmd.action === 'emotion') {
+            fetch('/api/persona', { method: 'POST', body: JSON.stringify({ emotion: parseInt(cmd.type) }) });
+        } else if (cmd.action === 'gesture') {
+            // Trigger macro by simulating a button click (since macroEngine is in app.js scope)
+            const btnMap = {
+                'wave': 'btn-macro-wave',
+                'highfive': 'btn-macro-highfive',
+                'grab': 'btn-macro-grab',
+                'stop': 'btn-macro-stop'
+            };
+            const btnId = btnMap[cmd.type];
+            if (btnId) {
+                const btn = document.getElementById(btnId);
+                if (btn) btn.click();
+            }
+        }
     }
 
 });

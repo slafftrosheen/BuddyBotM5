@@ -205,7 +205,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // ── 6. SIMON SAYS GAME ──
+    // ── 6. SIMON SAYS MINIGAME ──
     const simonPad = document.getElementById('simon-pad');
     const simonScore = document.getElementById('simon-score');
     const simonStatus = document.getElementById('simon-status');
@@ -625,6 +625,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         document.getElementById('sys-alert').textContent = `WP REACHED: ${code.data}`;
                         fetch('/api/sound', { method: 'POST', body: JSON.stringify({ sound: 'melody' }) });
                         fetch('/api/persona', { method: 'POST', body: JSON.stringify({ emotion: 1 }) }); // Happy
+                        fetch('/api/motors', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ speed: 0, turn: 0, trimL:0, trimR:0 }) }); // STOP
                         state.qrScan = false; // Scan once
                         document.getElementById('btn-qr-scan').click(); // toggle off
                         addXP(50);
