@@ -1,6 +1,7 @@
 import os
 import requests
 import sys
+import time
 
 # Usage: python deploy_web.py <CORES3_IP>
 # Deploys all files from web/ directory to the CoreS3 SD card via HTTP upload
@@ -37,6 +38,7 @@ for filename, filepath in files_to_upload:
             else:
                 print(f"[FAILED: {res.status_code}]")
                 failed += 1
+            time.sleep(1) # Give ESP32 time to write to LittleFS
         except Exception as e:
             print(f"[ERROR: {e}]")
             failed += 1
