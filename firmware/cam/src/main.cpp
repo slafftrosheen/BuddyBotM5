@@ -86,7 +86,6 @@ void setup() {
     }
 
     WiFi.mode(WIFI_STA);
-    wifiMulti.addAP("BuddyBot-Brain", "BuddyBot123"); // Pi Zero Hotspot
     wifiMulti.addAP("STARLINK.TAK", password);
     wifiMulti.addAP("TAK", password);
     
@@ -99,9 +98,15 @@ void setup() {
 
     server.begin();
 
-    Serial.print("Camera Stream Ready! Go to: http://");
+    Serial.print("Camera Ready! Use 'http://");
     Serial.print(WiFi.localIP());
     Serial.println("/stream");
+
+    if (!MDNS.begin("buddycam")) {
+        Serial.println("Error setting up MDNS responder!");
+    } else {
+        Serial.println("mDNS responder started: buddycam.local");
+    }
 
     initVoiceAssistant();
 

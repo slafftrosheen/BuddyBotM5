@@ -1,13 +1,16 @@
 #include "VoiceAssistant.h"
 #include <WiFi.h>
+#include <WiFiClientSecure.h>
 #include <HTTPClient.h>
+#include <ESPmDNS.h>
 #include <M5EchoBase.h>
 
 // ==========================================
 // CONFIGURATION
 // ==========================================
-// If connected to Pi Zero Hotspot, IP is usually 192.168.4.1 or 10.42.0.1
-const char* PI_SERVER_URL = "http://10.42.0.1:8000/api/voice"; 
+// The hostname of the Pi Zero on the TAK network
+const char* PI_HOSTNAME = "buddybrain"; 
+const int PI_PORT = 8000;
 const int BUTTON_PIN = 41;
 
 #if (ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0))
@@ -65,8 +68,19 @@ void initVoiceAssistant() {
 }
 
 void sendToPi(uint8_t* payload, size_t payloadSize) {
+    Serial.println("Looking for buddybrain.local...");
+    IPAddress serverIP = MDNS.queryHost(PI_HOSTNAME);
+    
+    if (serverIP.toString() == "0.0.0.0") {
+        Serial.println("Could not find Pi Zero (buddybrain.local) on the network!");
+        return;
+    }
+
+    String url = "http://" + serverIP.toString() + ":" + String(PI_PORT) + "/api/voice";
+    Serial.println("Connecting to: " + url);
+
     HTTPClient http;
-    http.begin(PI_SERVER_URL);
+    http.begin(url);
     http.addHeader("Content-Type", "audio/wav");
     
     Serial.println("Sending audio to Pi Server...");

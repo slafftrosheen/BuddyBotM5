@@ -10,7 +10,8 @@ BuddyBot utilizes a distributed 3-tier architecture connected over WiFi:
 3. **The Brain (Raspberry Pi Zero 2W)**: Runs a local Python server. Hosts the intelligence logic, routing audio from the ESP32 to the Gemini API (`gemini-1.5-flash`), generating responses using local Text-to-Speech (gTTS/Piper), and streaming PCM audio back to the robot.
 
 ### Network Topology (Portability)
-To make BuddyBot completely portable away from home, the **Pi Zero 2W** broadcasts a WiFi Hotspot (SSID: `BuddyBot-Brain`, Password: `BuddyBot123`). Both the CoreS3 and the ATOM CAM are programmed to automatically connect to this hotspot if available, or fall back to your home router (`STARLINK.TAK` / `TAK`).
+To make BuddyBot completely portable away from home, the entire robot (CoreS3, ATOM CAM, and Pi Zero 2W) is programmed to connect to your phone's mobile hotspot (`STARLINK.TAK` or `TAK`). 
+Because your phone assigns a random IP address to the Pi Zero every time, the ATOM CAM uses **mDNS** to dynamically find the Pi Zero on the network by looking for `buddybrain.local`.
 
 ## Tactical Web UI
 
@@ -56,14 +57,21 @@ pio run -t upload --upload-port 10.140.12.137  # ATOM CAM
 
 To give BuddyBot its intelligence and natural voice, you need to set up the Pi Zero 2W:
 
-### 1. Enable WiFi Hotspot
-On your Pi Zero 2W (running Raspberry Pi OS), use `nmcli` to create the hotspot:
+### 1. Set the Hostname (Required for mDNS)
+Because the Pi Zero connects to your phone's hotspot (`TAK`), its IP address will constantly change. The ATOM CAM uses mDNS to find it. 
+You must change your Pi Zero's hostname to `buddybrain`:
 ```bash
-sudo nmcli dev wifi hotspot ifname wlan0 ssid BuddyBot-Brain password BuddyBot123
+# 1. Open the config tool
+sudo raspi-config
+# 2. Go to System Options -> Hostname
+# 3. Change it to: buddybrain
+# 4. Reboot the Pi Zero
 ```
-*Note: By default, NetworkManager hotspots assign the IP `10.42.0.1` to the Pi.*
 
-### 2. Run the AI Server
+### 2. Connect to the Phone Hotspot
+Ensure your Pi Zero 2W is connected to your phone's hotspot (`TAK` or `STARLINK.TAK`), just like the CoreS3 and ATOM CAM.
+
+### 3. Run the AI Server
 Copy the `server/` directory from this repository to your Pi Zero 2W.
 ```bash
 # Install ffmpeg (required for audio format conversion)
@@ -75,4 +83,4 @@ pip install -r requirements.txt
 # Run the server
 python brain.py
 ```
-*Make sure `PI_SERVER_URL` in `firmware/cam/src/VoiceAssistant.cpp` matches your Pi's hotspot IP address (`http://10.42.0.1:8000/api/voice`) before flashing the ATOM CAM.*
+*The ATOM CAM will automatically search for `http://buddybrain.local:8000/api/voice` when you press the button.*
