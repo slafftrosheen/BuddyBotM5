@@ -225,6 +225,7 @@
                             <button class="action-btn" id="btn-sleep-cycle">💤 SLEEP CYCLE</button>
                             <button class="action-btn" id="btn-color-track">🎾 FETCH COLOR</button>
                             <button class="action-btn" id="btn-qr-scan">📷 SCAN WAYPOINT</button>
+                            <button class="action-btn" id="btn-yolo-vision" style="grid-column: span 2; border-color: #ff00ff; color: #ff00ff;">👁️ YOLO VISION</button>
                         </div>
                     </div>
                 </section>
@@ -356,6 +357,11 @@
         <!-- Hidden canvas for Computer Vision -->
         <canvas id="cv-canvas" width="320" height="240" style="display:none;"></canvas>
     </div>
+    
+    <!-- TensorFlow.js and YOLO model -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
+
     <script src="app.js?v=3.0"></script>
     <script src="gamification.js?v=2.0"></script>
     <script src="chatbot.js?v=1.0"></script>

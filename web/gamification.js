@@ -17,7 +17,8 @@ document.addEventListener('DOMContentLoaded', () => {
         autoNav: false,
         faceTrack: false,
         colorTrack: false,
-        qrScan: false
+        qrScan: false,
+        yoloVision: false
     };
 
     function updateNeedsUI() {
@@ -356,13 +357,36 @@ document.addEventListener('DOMContentLoaded', () => {
         if(state.qrScan) document.getElementById('sys-alert').textContent = 'SCANNING WAYPOINTS';
     });
 
+    let yoloModel = null;
+    document.getElementById('btn-yolo-vision').addEventListener('click', async (e) => {
+        state.yoloVision = !state.yoloVision;
+        e.target.style.background = state.yoloVision ? '#ff00ff' : '';
+        e.target.style.color = state.yoloVision ? '#fff' : '#ff00ff';
+        
+        if (state.yoloVision) {
+            document.getElementById('sys-alert').textContent = 'LOADING YOLO COCO-SSD...';
+            if (!yoloModel && window.cocoSsd) {
+                try {
+                    yoloModel = await cocoSsd.load();
+                    document.getElementById('sys-alert').textContent = 'YOLO MODEL LOADED!';
+                } catch (err) {
+                    document.getElementById('sys-alert').textContent = 'YOLO LOAD FAILED';
+                    state.yoloVision = false;
+                    e.target.style.background = '';
+                }
+            } else if (yoloModel) {
+                document.getElementById('sys-alert').textContent = 'YOLO VISION ACTIVE';
+            }
+        }
+    });
+
     // CV Variables
     let lastAvgLuma = 0;
     let isStunned = false;
 
     // CV Loop
     function cvLoop() {
-        if (!state.guardMode && !state.colorGame && !state.autoNav && !state.faceTrack && !state.colorTrack && !state.qrScan) {
+        if (!state.guardMode && !state.colorGame && !state.autoNav && !state.faceTrack && !state.colorTrack && !state.qrScan && !state.yoloVision) {
             requestAnimationFrame(cvLoop);
             return;
         }
@@ -631,6 +655,66 @@ document.addEventListener('DOMContentLoaded', () => {
                         addXP(50);
                     }
                 }
+                // -- YOLO VISION INFERENCE --
+                if (state.yoloVision && yoloModel && overlayCtx && overlayCanvas) {
+                    yoloModel.detect(camImg).then(predictions => {
+                        overlayCtx.font = '12px Courier New';
+                        overlayCtx.textBaseline = 'top';
+                        
+                        let foundPerson = false;
+                        let personBox = null;
+
+                        predictions.forEach(pred => {
+                            // Scale coordinates from original img to overlay canvas size
+                            const scaleX = overlayCanvas.width / camImg.naturalWidth;
+                            const scaleY = overlayCanvas.height / camImg.naturalHeight;
+                            
+                            const x = pred.bbox[0] * scaleX;
+                            const y = pred.bbox[1] * scaleY;
+                            const w = pred.bbox[2] * scaleX;
+                            const h = pred.bbox[3] * scaleY;
+                            
+                            // Draw Bounding Box
+                            overlayCtx.strokeStyle = '#ff00ff';
+                            overlayCtx.lineWidth = 2;
+                            overlayCtx.strokeRect(x, y, w, h);
+                            
+                            // Draw Label
+                            overlayCtx.fillStyle = '#ff00ff';
+                            overlayCtx.fillRect(x, y - 15, w, 15);
+                            overlayCtx.fillStyle = '#000000';
+                            overlayCtx.fillText(`${pred.class.toUpperCase()} ${Math.round(pred.score * 100)}%`, x + 2, y - 13);
+                            
+                            if (pred.class === 'person') {
+                                foundPerson = true;
+                                personBox = {x, y, w, h};
+                            }
+                        });
+
+                        // -- YOLO PERSON TRACKING (GIMBAL) --
+                        if (foundPerson && personBox) {
+                            const centerX = overlayCanvas.width / 2;
+                            const centerY = overlayCanvas.height / 2;
+                            const targetX = personBox.x + (personBox.w / 2);
+                            const targetY = personBox.y + (personBox.h / 2);
+                            
+                            const errorX = targetX - centerX;
+                            const errorY = targetY - centerY;
+                            
+                            let pan = 0;
+                            let tilt = 0;
+                            if (errorX < -20) pan = -40;
+                            else if (errorX > 20) pan = 40;
+                            
+                            if (errorY < -20) tilt = -40;
+                            else if (errorY > 20) tilt = 40;
+                            
+                            if (pan !== 0) fetch('/api/servo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ channel: 1, angle: Math.round(90 + (pan * 90 / 100)) }) });
+                            if (tilt !== 0) fetch('/api/servo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ channel: 2, angle: Math.round(90 + (tilt * 90 / 100)) }) });
+                        }
+                    });
+                }
+
                 } // End if (!isStunned)
 
             } catch (err) {
@@ -639,8 +723,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         // Run at ~5 FPS to save CPU (200ms)
-        // If tracking, run faster (100ms)
-        const delay = (state.autoNav || state.faceTrack || state.colorTrack) ? 100 : 200;
+        // If YOLO active, we run slower to not freeze the UI thread
+        const delay = state.yoloVision ? 500 : (state.autoNav || state.faceTrack || state.colorTrack) ? 100 : 200;
         setTimeout(() => requestAnimationFrame(cvLoop), delay);
     }
     
