@@ -687,4 +687,95 @@ document.addEventListener('DOMContentLoaded', () => {
         e.target.style.color = window.sleepCycleEnabled ? '#fff' : '';
         document.getElementById('sys-alert').textContent = window.sleepCycleEnabled ? 'SLEEP TIMER ON' : 'SLEEP TIMER OFF';
     });
+
+    // ══════════════════════════════════════════
+    // PHASE 9: MANIPULATOR ARM MACRO GESTURES
+    // ══════════════════════════════════════════
+    let macroTimeout = null;
+
+    function runMacro(sequence) {
+        if (macroTimeout) clearTimeout(macroTimeout);
+        
+        let step = 0;
+        function nextStep() {
+            if (step >= sequence.length) {
+                document.getElementById('sys-alert').textContent = 'MACRO COMPLETE';
+                return;
+            }
+            const action = sequence[step];
+            
+            // Execute servo commands
+            if (action.servos) {
+                for (const [ch, speed] of Object.entries(action.servos)) {
+                    const channel = parseInt(ch);
+                    state.servoValues[channel] = speed;
+                    
+                    // Update UI slider
+                    const slider = document.getElementById(`servo-slider-${channel}`);
+                    if (slider) slider.value = speed;
+                    const valDisplay = document.getElementById(`servo-val-${channel}`);
+                    if (valDisplay) {
+                        if (speed === 0) valDisplay.textContent = 'STOP';
+                        else valDisplay.textContent = (speed > 0 ? '+' : '') + speed + '%';
+                    }
+                    
+                    // Send
+                    sendServoCommand(channel, speed, true); // force send
+                }
+            }
+
+            step++;
+            if (action.duration > 0) {
+                macroTimeout = setTimeout(nextStep, action.duration);
+            } else {
+                nextStep(); // immediate next
+            }
+        }
+        
+        document.getElementById('sys-alert').textContent = 'EXECUTING MACRO...';
+        nextStep();
+    }
+
+    // Stop Arm (Halt all CH3-CH7)
+    document.getElementById('btn-macro-stop').addEventListener('click', () => {
+        runMacro([
+            { servos: { 3: 0, 4: 0, 5: 0, 6: 0, 7: 0 }, duration: 0 }
+        ]);
+    });
+
+    // Wave Gesture
+    // Assumption: CH3/CH4 is shoulder/elbow. We sweep it back and forth.
+    document.getElementById('btn-macro-wave').addEventListener('click', () => {
+        runMacro([
+            { servos: { 3: 50 }, duration: 400 },
+            { servos: { 3: -50 }, duration: 400 },
+            { servos: { 3: 50 }, duration: 400 },
+            { servos: { 3: -50 }, duration: 400 },
+            { servos: { 3: 0 }, duration: 0 }
+        ]);
+    });
+
+    // High Five
+    document.getElementById('btn-macro-highfive').addEventListener('click', () => {
+        runMacro([
+            { servos: { 3: 80, 4: 60 }, duration: 500 }, // Raise arm and extend
+            { servos: { 3: 0, 4: 0 }, duration: 1000 },  // Hold for high five
+            { servos: { 3: -80, 4: -60 }, duration: 500 }, // Lower back down
+            { servos: { 3: 0, 4: 0 }, duration: 0 }
+        ]);
+    });
+
+    // Grab
+    // Assumption: CH6/CH7 is gripper/wrist
+    document.getElementById('btn-macro-grab').addEventListener('click', () => {
+        runMacro([
+            { servos: { 3: -40, 4: 50 }, duration: 600 }, // Reach down/forward
+            { servos: { 3: 0, 4: 0 }, duration: 200 },
+            { servos: { 7: 100 }, duration: 400 }, // Close gripper (spin)
+            { servos: { 7: 0 }, duration: 200 },
+            { servos: { 3: 60, 4: -30 }, duration: 600 }, // Lift object up
+            { servos: { 3: 0, 4: 0 }, duration: 0 }
+        ]);
+    });
+
 });
