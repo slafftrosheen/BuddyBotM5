@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>BuddyBot M5 — Tactical Command</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/nipplejs/0.10.1/nipplejs.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="scanlines"></div>
+    <div class="hud-container">
+        <!-- TOP BAR -->
+        <header class="hud-bar">
+            <div class="hud-bar-left">
+                <span class="hud-logo">⬡ BUDDY_BOT</span>
+                <span class="hud-version">M5 // TAC-v2.0</span>
+            </div>
+            <div class="hud-bar-center">
+                <span class="mission-clock" id="mission-clock">T+ 00:00:00</span>
+            </div>
+            <div class="hud-bar-right">
+                <span class="sys-alert" id="sys-alert"></span>
+                <span id="conn-status" class="conn-badge offline">⬤ OFFLINE</span>
+            </div>
+        </header>
+
+        <main class="hud-grid">
+            <!-- LEFT COLUMN -->
+            <div class="col-left">
+                <!-- Camera Feed -->
+                <section class="panel cam-panel" id="cam-panel">
+                    <div class="panel-header">
+                        <span class="panel-title">◉ OPTIC FEED</span>
+                        <span class="panel-badge" id="cam-fps">-- FPS</span>
+                    </div>
+                    <div class="cam-frame">
+                        <img id="cam-stream" src="" alt="NO SIGNAL" />
+                        <div class="cam-hud-overlay">
+                            <div class="cam-grid"></div>
+                            <div class="cam-crosshair"></div>
+                            <div class="cam-corners">
+                                <span class="corner tl"></span>
+                                <span class="corner tr"></span>
+                                <span class="corner bl"></span>
+                                <span class="corner br"></span>
+                            </div>
+                            <div class="cam-heading" id="cam-heading">HDG 000°</div>
+                            <div class="cam-pitch" id="cam-pitch">PIT 0.0°</div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Telemetry -->
+                <section class="panel telemetry-panel">
+                    <div class="panel-header">
+                        <span class="panel-title">◈ TELEMETRY</span>
+                    </div>
+                    <div class="telem-grid">
+                        <div class="telem-item">
+                            <div class="telem-bar-track"><div class="telem-bar" id="bar-temp" style="width:0%"></div></div>
+                            <div class="telem-info"><span class="telem-label">TEMP</span><span class="telem-value" id="val-temp">--°C</span></div>
+                        </div>
+                        <div class="telem-item">
+                            <div class="telem-bar-track"><div class="telem-bar" id="bar-hum" style="width:0%"></div></div>
+                            <div class="telem-info"><span class="telem-label">HUM</span><span class="telem-value" id="val-hum">--%</span></div>
+                        </div>
+                        <div class="telem-item">
+                            <div class="telem-bar-track"><div class="telem-bar" id="bar-pres" style="width:0%"></div></div>
+                            <div class="telem-info"><span class="telem-label">PRES</span><span class="telem-value" id="val-pres">--hPa</span></div>
+                        </div>
+                        <div class="telem-item">
+                            <div class="telem-bar-track"><div class="telem-bar" id="bar-gas" style="width:0%"></div></div>
+                            <div class="telem-info"><span class="telem-label">VOC</span><span class="telem-value" id="val-gas">--KΩ</span></div>
+                        </div>
+                        <div class="telem-item">
+                            <div class="telem-bar-track"><div class="telem-bar telem-bar-imu" id="bar-roll" style="width:50%"></div></div>
+                            <div class="telem-info"><span class="telem-label">ROLL</span><span class="telem-value" id="val-roll">--°</span></div>
+                        </div>
+                        <div class="telem-item">
+                            <div class="telem-bar-track"><div class="telem-bar telem-bar-imu" id="bar-pitch" style="width:50%"></div></div>
+                            <div class="telem-info"><span class="telem-label">PITCH</span><span class="telem-value" id="val-pitch">--°</span></div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <!-- RIGHT COLUMN -->
+            <div class="col-right">
+                <!-- Drive System -->
+                <section class="panel drive-panel">
+                    <div class="panel-header">
+                        <span class="panel-title">◎ DRIVE SYS</span>
+                        <span class="panel-badge" id="drive-readout">SPD 0% | HDG 0°</span>
+                    </div>
+                    <div class="drive-layout">
+                        <div id="joystick-zone"></div>
+                        <div class="throttle-gauge">
+                            <div class="throttle-fill" id="throttle-fill"></div>
+                            <span class="throttle-label" id="throttle-pct">0%</span>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Persona -->
+                <section class="panel persona-panel">
+                    <div class="panel-header">
+                        <span class="panel-title">◉ PERSONA</span>
+                        <button class="panel-btn" id="persona-settings-btn" title="Customize">⚙</button>
+                    </div>
+                    <div class="emotion-grid" id="emotion-grid">
+                        <button class="emo-btn active" data-emotion="0"><span class="emo-icon">◉</span>NEUTRAL</button>
+                        <button class="emo-btn" data-emotion="1"><span class="emo-icon">◠</span>HAPPY</button>
+                        <button class="emo-btn" data-emotion="2"><span class="emo-icon">▼</span>ANGRY</button>
+                        <button class="emo-btn" data-emotion="3"><span class="emo-icon">—</span>SLEEPY</button>
+                        <button class="emo-btn" data-emotion="4"><span class="emo-icon">★</span>EXCITED</button>
+                        <button class="emo-btn" data-emotion="5"><span class="emo-icon">◡</span>SAD</button>
+                        <button class="emo-btn" data-emotion="6"><span class="emo-icon">?</span>CURIOUS</button>
+                        <button class="emo-btn" data-emotion="7"><span class="emo-icon">!</span>ALERT</button>
+                    </div>
+                    <!-- Persona Customization (hidden by default) -->
+                    <div class="persona-custom" id="persona-custom" style="display:none;">
+                        <div class="custom-row">
+                            <label>Eye Color</label>
+                            <input type="color" id="eye-color" value="#00f3ff">
+                        </div>
+                        <div class="custom-row">
+                            <label>Eye Size</label>
+                            <input type="range" id="eye-size" min="10" max="50" value="30">
+                        </div>
+                        <div class="custom-row">
+                            <label>Blink Rate</label>
+                            <input type="range" id="blink-rate" min="500" max="8000" value="3000">
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Entertainment -->
+                <section class="panel entertain-panel">
+                    <div class="panel-header">
+                        <span class="panel-title">♫ ENTERTAIN</span>
+                    </div>
+                    <div class="entertain-grid">
+                        <button class="sfx-btn" data-sound="beep">🔊 BEEP</button>
+                        <button class="sfx-btn" data-sound="siren">🚨 SIREN</button>
+                        <button class="sfx-btn" data-sound="laugh">😂 LAUGH</button>
+                        <button class="sfx-btn" data-sound="horn">📯 HORN</button>
+                        <button class="sfx-btn" data-sound="r2d2">🤖 R2D2</button>
+                        <button class="sfx-btn" data-sound="melody">🎵 MELODY</button>
+                        <button class="action-btn" id="btn-dance">💃 DANCE MODE</button>
+                        <button class="action-btn" id="btn-wander">🧭 AUTO WANDER</button>
+                    </div>
+                </section>
+            </div>
+
+            <!-- BOTTOM FULL-WIDTH — Servo Array -->
+            <section class="panel servo-panel full-width">
+                <div class="panel-header">
+                    <span class="panel-title">⚙ SERVO ARRAY — CONTINUOUS ROTATION</span>
+                    <span class="panel-note">CH0 = STEERING (auto-linked to joystick)</span>
+                </div>
+                <div class="servo-grid" id="servo-grid">
+                    <!-- Generated by JS -->
+                </div>
+            </section>
+
+            <!-- Settings -->
+            <section class="panel settings-panel full-width" id="settings-panel">
+                <div class="panel-header">
+                    <span class="panel-title">⚙ SYSTEM CONFIG</span>
+                    <button class="panel-btn" id="settings-toggle">▼</button>
+                </div>
+                <div class="settings-body" id="settings-body" style="display:none;">
+                    <div class="settings-grid">
+                        <div class="setting-item">
+                            <label>Motor Trim L</label>
+                            <input type="range" id="trim-left" min="-20" max="20" value="0">
+                            <span class="trim-val" id="trim-left-val">0</span>
+                        </div>
+                        <div class="setting-item">
+                            <label>Motor Trim R</label>
+                            <input type="range" id="trim-right" min="-20" max="20" value="0">
+                            <span class="trim-val" id="trim-right-val">0</span>
+                        </div>
+                        <div class="setting-item">
+                            <label>Cam Flip</label>
+                            <button class="toggle-btn" id="cam-flip">OFF</button>
+                        </div>
+                        <div class="setting-item">
+                            <label>Cam Mirror</label>
+                            <button class="toggle-btn" id="cam-mirror">OFF</button>
+                        </div>
+                    </div>
+                    <div class="settings-actions">
+                        <button class="action-btn" id="btn-save-config">💾 SAVE CONFIG</button>
+                        <button class="action-btn danger" id="btn-reboot">⟳ REBOOT CORE</button>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <footer class="hud-footer">
+            <span>BUDDY_BOT M5 TACTICAL v2.0</span>
+            <span id="heap-info">HEAP: --</span>
+            <span id="wifi-rssi">RSSI: --</span>
+        </footer>
+    </div>
+    <script src="app.js"></script>
+</body>
+</html>
