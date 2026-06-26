@@ -32,13 +32,14 @@
             <!-- LEFT COLUMN -->
             <div class="col-left">
                 <!-- Camera Feed -->
-                <section class="panel cam-panel" id="cam-panel">
+                <section class="panel cam-panel full-width" id="cam-panel">
                     <div class="panel-header">
-                        <span class="panel-title">◉ OPTIC FEED</span>
-                        <span class="panel-badge" id="cam-fps">-- FPS</span>
+                        <span class="panel-title">◈ OPTICAL SENSOR</span>
+                        <span class="panel-badge conn-badge offline" id="cam-status">CAM OFF</span>
                     </div>
-                    <div class="cam-frame">
-                        <img id="cam-stream" src="" crossorigin="anonymous" alt="NO SIGNAL" />
+                    <div class="cam-frame" style="position: relative;">
+                        <img id="cam-stream" src="" alt="Camera Offline" crossorigin="anonymous" />
+                        <canvas id="cam-overlay" style="position: absolute; top:0; left:0; width:100%; height:100%; pointer-events:none;"></canvas>
                         <div class="cam-hud-overlay">
                             <div class="cam-grid"></div>
                             <div class="cam-crosshair"></div>

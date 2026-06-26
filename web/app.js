@@ -151,7 +151,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const valDisplay = document.getElementById('servo-val-0');
             if (valDisplay) valDisplay.textContent = 'STOP';
         }
-        sendServoCommand(0, 0);
+        sendServoCommand(0, 0, true); // force send on stop
     });
 
     // Periodic motor command send (and Patrol Record/Playback)
@@ -265,7 +265,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 e.target.value = 0;
                 state.servoValues[0] = 0;
                 valDisplay.textContent = 'STOP';
-                sendServoCommand(0, 0);
+                sendServoCommand(0, 0, true);
+            } else {
+                // Ensure final value of other sliders is sent reliably on release
+                sendServoCommand(parseInt(e.target.dataset.channel), parseInt(e.target.value), true);
             }
         });
 
@@ -295,7 +298,17 @@ document.addEventListener('DOMContentLoaded', () => {
     // Zero all servos
     const btnResetServos = document.getElementById('btn-reset-servos');
 
-    function sendServoCommand(channel, speed) {
+    const lastServoCmds = {};
+    const servoThrottleMs = 100;
+
+    function sendServoCommand(channel, speed, force = false) {
+        const now = Date.now();
+        if (!force && lastServoCmds[channel] && (now - lastServoCmds[channel] < servoThrottleMs)) {
+            // Throttle rapidly changing sliders/joystick to prevent net::ERR_NO_BUFFER_SPACE
+            return;
+        }
+        lastServoCmds[channel] = now;
+
         // Apply inversion
         let actualSpeed = state.servoInverts[channel] ? -speed : speed;
         // Map -100..+100 to 0..180 for continuous rotation (90 = stop)

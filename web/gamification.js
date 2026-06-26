@@ -280,11 +280,17 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // ── 7. COMPUTER VISION: GUARD MODE & COLOR GAME ──
+    // ── 7. COMPUTER VISION BASE ──
     const camImg = document.getElementById('cam-stream');
-    const canvas = document.getElementById('cv-canvas');
+    const canvas = document.createElement('canvas');
+    canvas.width = 160; // downscale for processing
+    canvas.height = 120;
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     
+    // -- VISIBLE OVERLAY --
+    const overlayCanvas = document.getElementById('cam-overlay');
+    const overlayCtx = overlayCanvas ? overlayCanvas.getContext('2d') : null;
+
     let lastImageData = null;
     
     document.getElementById('btn-guard-mode').addEventListener('click', (e) => {
@@ -362,14 +368,22 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (camImg.complete && camImg.naturalWidth !== 0) {
-            // Draw current camera frame to hidden canvas
+            // Draw current camera frame to hidden canvas for processing
             try {
-                // If stunned, draw a red tint
-                if (isStunned) {
-                    ctx.fillStyle = 'rgba(255, 0, 0, 0.3)';
-                    ctx.fillRect(0, 0, canvas.width, canvas.height);
-                } else {
-                    ctx.drawImage(camImg, 0, 0, canvas.width, canvas.height);
+                ctx.drawImage(camImg, 0, 0, canvas.width, canvas.height);
+                
+                // Clear and prep the visible overlay canvas
+                if (overlayCanvas && overlayCtx) {
+                    // Match coordinate system so x,y maps perfectly
+                    if (overlayCanvas.width !== canvas.width) overlayCanvas.width = canvas.width;
+                    if (overlayCanvas.height !== canvas.height) overlayCanvas.height = canvas.height;
+                    overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+                    
+                    // If stunned, draw a red tint to the visible UI!
+                    if (isStunned) {
+                        overlayCtx.fillStyle = 'rgba(255, 0, 0, 0.4)';
+                        overlayCtx.fillRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+                    }
                 }
                 
                 const currentImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
@@ -533,29 +547,31 @@ document.addEventListener('DOMContentLoaded', () => {
                         const errorY = targetY - centerY;
                         
                         // -- TACTICAL TARGET LOCK UI --
-                        // Draw a sci-fi bounding box directly onto the canvas over the camera feed
-                        ctx.strokeStyle = state.colorTrack ? '#00ffaa' : '#00f3ff';
-                        ctx.lineWidth = 2;
-                        
-                        // Draw corners
-                        const s = 15; // size of box
-                        const len = 5; // length of corner marks
-                        ctx.beginPath();
-                        // Top-left
-                        ctx.moveTo(targetX - s, targetY - s + len); ctx.lineTo(targetX - s, targetY - s); ctx.lineTo(targetX - s + len, targetY - s);
-                        // Top-right
-                        ctx.moveTo(targetX + s - len, targetY - s); ctx.lineTo(targetX + s, targetY - s); ctx.lineTo(targetX + s, targetY - s + len);
-                        // Bottom-left
-                        ctx.moveTo(targetX - s, targetY + s - len); ctx.lineTo(targetX - s, targetY + s); ctx.lineTo(targetX - s + len, targetY + s);
-                        // Bottom-right
-                        ctx.moveTo(targetX + s - len, targetY + s); ctx.lineTo(targetX + s, targetY + s); ctx.lineTo(targetX + s, targetY + s - len);
-                        ctx.stroke();
+                        // Draw a sci-fi bounding box directly onto the visible canvas overlay
+                        if (overlayCtx) {
+                            overlayCtx.strokeStyle = state.colorTrack ? '#00ffaa' : '#00f3ff';
+                            overlayCtx.lineWidth = 2;
+                            
+                            // Draw corners
+                            const s = 15; // size of box
+                            const len = 5; // length of corner marks
+                            overlayCtx.beginPath();
+                            // Top-left
+                            overlayCtx.moveTo(targetX - s, targetY - s + len); overlayCtx.lineTo(targetX - s, targetY - s); overlayCtx.lineTo(targetX - s + len, targetY - s);
+                            // Top-right
+                            overlayCtx.moveTo(targetX + s - len, targetY - s); overlayCtx.lineTo(targetX + s, targetY - s); overlayCtx.lineTo(targetX + s, targetY - s + len);
+                            // Bottom-left
+                            overlayCtx.moveTo(targetX - s, targetY + s - len); overlayCtx.lineTo(targetX - s, targetY + s); overlayCtx.lineTo(targetX - s + len, targetY + s);
+                            // Bottom-right
+                            overlayCtx.moveTo(targetX + s - len, targetY + s); overlayCtx.lineTo(targetX + s, targetY + s); overlayCtx.lineTo(targetX + s, targetY + s - len);
+                            overlayCtx.stroke();
 
-                        // Draw cross center
-                        ctx.beginPath();
-                        ctx.moveTo(targetX - 3, targetY); ctx.lineTo(targetX + 3, targetY);
-                        ctx.moveTo(targetX, targetY - 3); ctx.lineTo(targetX, targetY + 3);
-                        ctx.stroke();
+                            // Draw cross center
+                            overlayCtx.beginPath();
+                            overlayCtx.moveTo(targetX - 3, targetY); overlayCtx.lineTo(targetX + 3, targetY);
+                            overlayCtx.moveTo(targetX, targetY - 3); overlayCtx.lineTo(targetX, targetY + 3);
+                            overlayCtx.stroke();
+                        }
                         
                         let pan = 0;
                         let tilt = 0;
