@@ -10,6 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
         level: parseInt(localStorage.getItem('botLevel') || '1'),
         hunger: parseFloat(localStorage.getItem('botHunger') || '100'),
         energy: parseFloat(localStorage.getItem('botEnergy') || '100'),
+        happiness: parseFloat(localStorage.getItem('botHappiness') || '100'),
         guardMode: false,
         colorGame: false,
         autoNav: false,
@@ -27,10 +28,13 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('bar-hunger').style.width = state.hunger + '%';
         document.getElementById('val-energy').textContent = Math.round(state.energy) + '%';
         document.getElementById('bar-energy').style.width = state.energy + '%';
+        document.getElementById('val-happy').textContent = Math.round(state.happiness) + '%';
+        document.getElementById('bar-happy').style.width = state.happiness + '%';
 
         // Warning colors
         document.getElementById('bar-hunger').style.background = state.hunger < 30 ? '#ff0000' : '#ffaa00';
         document.getElementById('bar-energy').style.background = state.energy < 30 ? '#ff0000' : '#00ffaa';
+        document.getElementById('bar-happy').style.background = state.happiness < 30 ? '#ff0000' : '#ff00ff';
     }
 
     function addXP(amount) {
@@ -53,18 +57,34 @@ document.addEventListener('DOMContentLoaded', () => {
         localStorage.setItem('botLevel', state.level);
         localStorage.setItem('botHunger', state.hunger);
         localStorage.setItem('botEnergy', state.energy);
+        localStorage.setItem('botHappiness', state.happiness);
         updateNeedsUI();
     }
 
     // Decay loop (runs every 5 seconds)
     setInterval(() => {
+        // Hunger & Happiness decay naturally
         state.hunger = Math.max(0, state.hunger - 0.5); // Slow decay
-        state.energy = Math.max(0, state.energy - 0.3);
+        state.happiness = Math.max(0, state.happiness - 0.2);
+        
+        // Energy logic
+        if (window.isDriving) {
+            state.energy = Math.max(0, state.energy - 1.5); // Fast drain when driving
+        } else if (window.sleepMode || state.guardMode) {
+            state.energy = Math.min(100, state.energy + 2.0); // Recharge when sleeping/sentry
+        } else {
+            state.energy = Math.max(0, state.energy - 0.1); // Idle drain
+        }
+        
         saveNeeds();
 
-        // If very hungry, show sad face occasionally
-        if (state.hunger < 20 && Math.random() < 0.2) {
+        // Needs-based Persona Override
+        if (state.happiness < 20) {
+            fetch('/api/persona', { method: 'POST', body: JSON.stringify({ emotion: 2 }) }); // Angry
+        } else if (state.hunger < 20 && Math.random() < 0.3) {
             fetch('/api/persona', { method: 'POST', body: JSON.stringify({ emotion: 5 }) }); // Sad
+        } else if (state.energy < 15 && Math.random() < 0.3) {
+            fetch('/api/persona', { method: 'POST', body: JSON.stringify({ emotion: 3 }) }); // Sleepy
         }
     }, 5000);
 
@@ -92,6 +112,7 @@ document.addEventListener('DOMContentLoaded', () => {
             setTimeout(() => {
                 btnParrot.textContent = '🦜 PARROT REC';
                 btnParrot.style.background = '';
+                state.happiness = Math.min(100, state.happiness + 5);
                 addXP(10);
             }, 1000);
         }).catch(() => {
@@ -439,6 +460,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     let maxBrightness = 0;
                     let targetX = -1;
                     let targetY = -1;
+                    let matchCount = 0;
                     
                     for (let y = 0; y < canvas.height; y += 4) {
                         for (let x = 0; x < canvas.width; x += 4) {
@@ -448,6 +470,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 // Green tracker
                                 if (data[i+1] > 150 && data[i+1] > data[i] * 1.2 && data[i+1] > data[i+2] * 1.2) {
                                     val = data[i+1];
+                                    matchCount++;
                                 }
                             } else {
                                 // Brightness tracker
@@ -490,6 +513,24 @@ document.addEventListener('DOMContentLoaded', () => {
                             else if (errorX > 20) turn = 50;
                             
                             let speed = 40; // Move forward if fetching
+                            
+                            // Tamagotchi: Eat the ball if it's very close!
+                            if (matchCount > 200) {
+                                speed = 0; // Stop
+                                document.getElementById('sys-alert').textContent = 'CHOMP! TASTY!';
+                                fetch('/api/sound', { method: 'POST', body: JSON.stringify({ sound: 'melody' }) });
+                                fetch('/api/persona', { method: 'POST', body: JSON.stringify({ emotion: 1 }) }); // Happy
+                                state.hunger = Math.min(100, state.hunger + 30);
+                                state.happiness = Math.min(100, state.happiness + 20);
+                                saveNeeds();
+                                addXP(15);
+                                
+                                // Turn off color track
+                                state.colorTrack = false;
+                                const btn = document.getElementById('btn-color-track');
+                                if (btn) btn.click();
+                            }
+                            
                             fetch('/api/motors', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ speed: speed, turn: turn, trimL:0, trimR:0 }) });
                         }
                     }

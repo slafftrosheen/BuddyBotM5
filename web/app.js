@@ -107,6 +107,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const angle = data.angle.radian;
         state.currentSpeed = Math.sin(angle) * force * 100;
         state.currentTurn = Math.cos(angle) * force * 100;
+        window.isDriving = true;
 
         // Update HUD readouts
         const absPct = Math.abs(Math.round(state.currentSpeed));
@@ -136,6 +137,7 @@ document.addEventListener('DOMContentLoaded', () => {
     manager.on('end', () => {
         state.currentSpeed = 0;
         state.currentTurn = 0;
+        window.isDriving = false;
         sendMotorCommand(0, 0);
         driveReadout.textContent = 'SPD 0% | HDG 0°';
         throttleFill.style.height = '0%';
