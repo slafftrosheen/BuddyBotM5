@@ -32,6 +32,17 @@ int blinkRate = 3000;
 float imu_pitch = 0.0;
 float imu_roll = 0.0;
 
+// Gamification State
+unsigned long lastActivityTime = 0;
+unsigned long nextQuirkTime = 60000;
+unsigned long pettingStartTime = 0;
+bool isPetting = false;
+
+// Audio Recording (Parrot Mode)
+int16_t* audioBuffer = nullptr;
+size_t audioBufferSize = 16000 * 3; // 16kHz * 3 seconds = 48K samples (96KB)
+size_t recordedLength = 0;
+
 #include <WiFiMulti.h>
 
 WiFiMulti wifiMulti;
@@ -157,6 +168,30 @@ void playSound(const char* sound) {
             M5.Speaker.tone(notes[i], 150);
             delay(180);
         }
+    } else if (strcmp(sound, "purr") == 0) {
+        for (int i = 0; i < 5; i++) {
+            M5.Speaker.tone(150, 100);
+            delay(120);
+            M5.Speaker.tone(120, 100);
+            delay(120);
+        }
+    } else if (strcmp(sound, "sneeze") == 0) {
+        M5.Speaker.tone(2000, 50);
+        delay(100);
+        M5.Speaker.tone(3000, 150);
+    } else if (strcmp(sound, "whistle") == 0) {
+        M5.Speaker.tone(1500, 200);
+        delay(250);
+        M5.Speaker.tone(2000, 400);
+    } else if (strcmp(sound, "snore") == 0) {
+        M5.Speaker.tone(200, 800);
+        delay(900);
+        M5.Speaker.tone(400, 400);
+    } else if (strcmp(sound, "eat") == 0) {
+        for (int i = 0; i < 4; i++) {
+            M5.Speaker.tone(800 + (i*100), 50);
+            delay(60);
+        }
     }
 }
 
@@ -185,7 +220,7 @@ void updatePersona() {
             M5.Lcd.fillRect(cx1 - eyeSize, cy, eyeSize * 2, 4, eyeColor);
             M5.Lcd.fillRect(cx2 - eyeSize, cy, eyeSize * 2, 4, eyeColor);
             isBlinking = false;
-            nextBlink = millis() + random(blinkRate / 2, blinkRate);
+            nextBlink = millis() + 150; // Eyes closed for 150ms
         } else {
             switch (currentEmotion) {
                 case 0: // Neutral
@@ -247,9 +282,38 @@ void updatePersona() {
                     M5.Lcd.setCursor(145, 50);
                     M5.Lcd.print("!");
                     break;
+                case 8: // Love — heart eyes (simple approximation)
+                    M5.Lcd.fillCircle(cx1 - 10, cy - 10, eyeSize/1.5, RED);
+                    M5.Lcd.fillCircle(cx1 + 10, cy - 10, eyeSize/1.5, RED);
+                    M5.Lcd.fillTriangle(cx1 - 25, cy, cx1 + 25, cy, cx1, cy + 30, RED);
+                    M5.Lcd.fillCircle(cx2 - 10, cy - 10, eyeSize/1.5, RED);
+                    M5.Lcd.fillCircle(cx2 + 10, cy - 10, eyeSize/1.5, RED);
+                    M5.Lcd.fillTriangle(cx2 - 25, cy, cx2 + 25, cy, cx2, cy + 30, RED);
+                    break;
+                case 9: // Shock — jagged eyes
+                    M5.Lcd.fillTriangle(cx1, cy - eyeSize, cx1 + eyeSize, cy + eyeSize/2, cx1 - eyeSize, cy + eyeSize/2, eyeColor);
+                    M5.Lcd.fillTriangle(cx2, cy - eyeSize, cx2 + eyeSize, cy + eyeSize/2, cx2 - eyeSize, cy + eyeSize/2, eyeColor);
+                    M5.Lcd.fillCircle(cx1, cy + eyeSize/4, eyeSize/3, BLACK);
+                    M5.Lcd.fillCircle(cx2, cy + eyeSize/4, eyeSize/3, BLACK);
+                    break;
+                case 10: // Dizzy — concentric circles
+                    for(int i=0; i<4; i++) {
+                        M5.Lcd.drawCircle(cx1, cy, eyeSize - i*6, eyeColor);
+                        M5.Lcd.drawCircle(cx2, cy, eyeSize - i*6, eyeColor);
+                    }
+                    M5.Lcd.fillCircle(cx1, cy, 4, RED);
+                    M5.Lcd.fillCircle(cx2, cy, 4, RED);
+                    break;
+                case 11: // Cool — sunglasses
+                    M5.Lcd.fillRect(cx1 - eyeSize, cy - eyeSize/2, eyeSize*2, eyeSize, BLACK);
+                    M5.Lcd.fillRect(cx2 - eyeSize, cy - eyeSize/2, eyeSize*2, eyeSize, BLACK);
+                    M5.Lcd.drawRect(cx1 - eyeSize, cy - eyeSize/2, eyeSize*2, eyeSize, eyeColor);
+                    M5.Lcd.drawRect(cx2 - eyeSize, cy - eyeSize/2, eyeSize*2, eyeSize, eyeColor);
+                    M5.Lcd.drawLine(cx1 + eyeSize, cy - eyeSize/2 + 5, cx2 - eyeSize, cy - eyeSize/2 + 5, eyeColor);
+                    break;
             }
             isBlinking = true;
-            nextBlink = millis() + 150;
+            nextBlink = millis() + random(blinkRate / 2, blinkRate); // Eyes open for random duration
         }
         lastEmotion = currentEmotion;
     }
@@ -389,6 +453,7 @@ void initServer() {
             setServoAngle(0, steer_pulse);
 
             request->send(200, "text/plain", "OK");
+            lastActivityTime = millis();
         } else {
             request->send(400, "text/plain", "Bad Request");
         }
@@ -406,6 +471,7 @@ void initServer() {
             int angle = doc["angle"]; // 0-180, 90=stop
             setServoAngle(channel, angle);
             request->send(200, "text/plain", "OK");
+            lastActivityTime = millis();
         } else {
             request->send(400, "text/plain", "Bad Request");
         }
@@ -432,6 +498,7 @@ void initServer() {
             }
 
             request->send(200, "text/plain", "OK");
+            lastActivityTime = millis();
         } else {
             request->send(400, "text/plain", "Bad Request");
         }
@@ -445,8 +512,68 @@ void initServer() {
             const char* sound = doc["sound"] | "beep";
             playSound(sound);
             request->send(200, "text/plain", "OK");
+            lastActivityTime = millis();
         } else {
             request->send(400, "text/plain", "Bad Request");
+        }
+    });
+
+    // ── GET /api/action ──
+    server.on("/api/action", HTTP_GET, [](AsyncWebServerRequest *request){
+        if (request->hasParam("cmd")) {
+            String cmd = request->getParam("cmd")->value();
+            if (cmd == "treat") {
+                // Play eating sound, wiggle, happy face
+                playSound("eat");
+                setMotorSpeeds(50, -50);
+                delay(150);
+                setMotorSpeeds(-50, 50);
+                delay(150);
+                setMotorSpeeds(0, 0);
+                currentEmotion = 1; // Happy
+                lastEmotion = -1;
+                lastActivityTime = millis();
+                request->send(200, "text/plain", "Yummy");
+                return;
+            }
+        }
+        request->send(400, "text/plain", "Invalid Action");
+    });
+
+    // ── POST /api/record ──
+    server.on("/api/record", HTTP_POST, [](AsyncWebServerRequest *request){
+        if (audioBuffer == nullptr) {
+            audioBuffer = (int16_t*)ps_malloc(audioBufferSize * sizeof(int16_t));
+        }
+        if (audioBuffer != nullptr) {
+            M5.Speaker.tone(2000, 100); // Beep to indicate start
+            delay(150);
+            M5.Mic.record(audioBuffer, audioBufferSize, 16000);
+            while (M5.Mic.isRecording()) {
+                delay(10);
+                M5.update();
+            }
+            recordedLength = audioBufferSize;
+            M5.Speaker.tone(1000, 100); // Beep to indicate end
+            request->send(200, "text/plain", "Recorded");
+        } else {
+            request->send(500, "text/plain", "Out of memory");
+        }
+    });
+
+    // ── POST /api/playback ──
+    server.on("/api/playback", HTTP_POST, [](AsyncWebServerRequest *request){
+        float pitchMult = 1.0;
+        if (request->hasParam("pitch")) {
+            pitchMult = request->getParam("pitch")->value().toFloat();
+            if (pitchMult < 0.5) pitchMult = 0.5;
+            if (pitchMult > 2.0) pitchMult = 2.0;
+        }
+        if (audioBuffer != nullptr && recordedLength > 0) {
+            M5.Speaker.playRaw(audioBuffer, recordedLength, 16000 * pitchMult);
+            request->send(200, "text/plain", "Playing");
+        } else {
+            request->send(400, "text/plain", "No audio recorded");
         }
     });
 
@@ -469,6 +596,7 @@ void initServer() {
 // ═══════════════════════════════════════
 void setup() {
     auto cfg = M5.config();
+    cfg.internal_mic = false; // Disable mic to prevent I2S crash on CoreS3
     M5.begin(cfg);
     M5.Imu.begin();
     M5.Speaker.begin();
@@ -535,11 +663,48 @@ void loop() {
     imu_pitch = atan2(ax, sqrt(ay * ay + az * az)) * 180.0 / PI;
     imu_roll = atan2(ay, az) * 180.0 / PI;
 
+    // Gamification: Petting Detection
+    float accMag = sqrt(ax * ax + ay * ay + az * az);
+    static float lastAccMag = 1.0;
+    if (abs(accMag - lastAccMag) > 0.2) { 
+        if (!isPetting) {
+            pettingStartTime = millis();
+            isPetting = true;
+        } else if (millis() - pettingStartTime > 2000) {
+            playSound("purr");
+            currentEmotion = 1; // Happy
+            lastEmotion = -1;
+            lastActivityTime = millis();
+            isPetting = false;
+        }
+    } else {
+        isPetting = false;
+    }
+    lastAccMag = accMag;
+
+    // Gamification: Idle Quirks
+    if (millis() - lastActivityTime > nextQuirkTime) {
+        int quirk = random(0, 3);
+        if (quirk == 0) {
+            playSound("sneeze");
+            currentEmotion = 6; // Curious
+        } else if (quirk == 1) {
+            playSound("whistle");
+            currentEmotion = 1; // Happy
+        } else {
+            playSound("snore");
+            currentEmotion = 3; // Sleepy
+        }
+        lastEmotion = -1;
+        lastActivityTime = millis();
+        nextQuirkTime = random(20000, 45000);
+    }
+
     // Touch: cycle emotions on tap
     if (M5.Touch.getCount() > 0) {
         auto t = M5.Touch.getDetail();
         if (t.wasClicked()) {
-            currentEmotion = (currentEmotion + 1) % 8;
+            currentEmotion = (currentEmotion + 1) % 12;
             lastEmotion = -1;
         }
     }

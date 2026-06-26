@@ -15,12 +15,23 @@ document.addEventListener('DOMContentLoaded', () => {
         motorTrimR: parseInt(localStorage.getItem('motorTrimR') || '0'),
         camFlip: localStorage.getItem('camFlip') === 'true',
         camMirror: localStorage.getItem('camMirror') === 'true',
+        hudTheme: localStorage.getItem('hudTheme') || 'green',
         danceMode: false,
         wanderMode: false,
         currentSpeed: 0,
         currentTurn: 0,
-        servoValues: [0, 0, 0, 0, 0, 0, 0, 0] // -100 to +100, 0 = stop
+        servoValues: [0, 0, 0, 0, 0, 0, 0, 0], // -100 to +100, 0 = stop
+        sentryMode: 0, // 0: off, 1: recording, 2: playing
+        sentryRoute: JSON.parse(localStorage.getItem('sentryRoute') || '[]'),
+        sentryStartTime: 0,
+        sentryPlayIndex: 0,
+        gasHistory: []
     };
+
+    // Apply Theme
+    if (state.hudTheme !== 'green') {
+        document.body.classList.add(`theme-${state.hudTheme}`);
+    }
 
     // ══════════════════════════════════════════
     // 1. MISSION CLOCK
@@ -33,6 +44,47 @@ document.addEventListener('DOMContentLoaded', () => {
         const s = String(elapsed % 60).padStart(2, '0');
         clockEl.textContent = `T+ ${h}:${m}:${s}`;
     }, 1000);
+
+    // ══════════════════════════════════════════
+    // MISSION TIMER (STOPWATCH)
+    // ══════════════════════════════════════════
+    let timerInterval = null;
+    let timerStartTime = 0;
+    let timerElapsed = 0;
+    const timerDisplay = document.getElementById('timer-display');
+
+    function updateTimerDisplay(ms) {
+        const mins = String(Math.floor(ms / 60000)).padStart(2, '0');
+        const secs = String(Math.floor((ms % 60000) / 1000)).padStart(2, '0');
+        const centis = String(Math.floor((ms % 1000) / 10)).padStart(2, '0');
+        timerDisplay.textContent = `${mins}:${secs}.${centis}`;
+    }
+
+    document.getElementById('btn-timer-start').addEventListener('click', () => {
+        if (!timerInterval) {
+            timerStartTime = Date.now() - timerElapsed;
+            timerInterval = setInterval(() => {
+                timerElapsed = Date.now() - timerStartTime;
+                updateTimerDisplay(timerElapsed);
+            }, 10);
+        }
+    });
+
+    document.getElementById('btn-timer-stop').addEventListener('click', () => {
+        if (timerInterval) {
+            clearInterval(timerInterval);
+            timerInterval = null;
+        }
+    });
+
+    document.getElementById('btn-timer-reset').addEventListener('click', () => {
+        if (timerInterval) {
+            clearInterval(timerInterval);
+            timerInterval = null;
+        }
+        timerElapsed = 0;
+        updateTimerDisplay(0);
+    });
 
     // ══════════════════════════════════════════
     // 2. JOYSTICK — DRIVE SYSTEM
@@ -65,6 +117,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Update camera heading overlay from turn
         document.getElementById('cam-heading').textContent = `HDG ${(180 + hdg).toFixed(0)}°`;
+
+        // Steering CH0 Control
+        const steeringSpeed = hdg;
+        state.servoValues[0] = steeringSpeed;
+        const ch0Slider = document.getElementById('servo-slider-0');
+        if (ch0Slider) {
+            ch0Slider.value = steeringSpeed;
+            const valDisplay = document.getElementById('servo-val-0');
+            if (valDisplay) {
+                if (steeringSpeed === 0) valDisplay.textContent = 'STOP';
+                else valDisplay.textContent = (steeringSpeed > 0 ? '+' : '') + steeringSpeed + '%';
+            }
+        }
+        sendServoCommand(0, steeringSpeed);
     });
 
     manager.on('end', () => {
@@ -74,10 +140,49 @@ document.addEventListener('DOMContentLoaded', () => {
         driveReadout.textContent = 'SPD 0% | HDG 0°';
         throttleFill.style.height = '0%';
         throttlePct.textContent = '0%';
+
+        // Reset CH0 Steering
+        state.servoValues[0] = 0;
+        const ch0Slider = document.getElementById('servo-slider-0');
+        if (ch0Slider) {
+            ch0Slider.value = 0;
+            const valDisplay = document.getElementById('servo-val-0');
+            if (valDisplay) valDisplay.textContent = 'STOP';
+        }
+        sendServoCommand(0, 0);
     });
 
-    // Periodic motor command send
+    // Periodic motor command send (and Patrol Record/Playback)
     setInterval(() => {
+        const now = Date.now();
+        
+        // Patrol Recording
+        if (state.sentryMode === 1) {
+            const timeOffset = now - state.sentryStartTime;
+            const lastFrame = state.sentryRoute.length > 0 ? state.sentryRoute[state.sentryRoute.length - 1] : null;
+            // Only record if state changed or every 500ms to keep it small
+            if (!lastFrame || lastFrame.s !== state.currentSpeed || lastFrame.t !== state.currentTurn || (timeOffset - lastFrame.time) > 500) {
+                state.sentryRoute.push({ time: timeOffset, s: state.currentSpeed, t: state.currentTurn, ch0: state.servoValues[0] });
+                localStorage.setItem('sentryRoute', JSON.stringify(state.sentryRoute));
+            }
+        }
+        
+        // Patrol Playback
+        if (state.sentryMode === 2 && state.sentryRoute.length > 0) {
+            const timeOffset = (now - state.sentryStartTime) % state.sentryRoute[state.sentryRoute.length - 1].time;
+            
+            // Find current frame
+            let frame = state.sentryRoute[0];
+            for (let i = 0; i < state.sentryRoute.length; i++) {
+                if (state.sentryRoute[i].time > timeOffset) break;
+                frame = state.sentryRoute[i];
+            }
+            
+            state.currentSpeed = frame.s;
+            state.currentTurn = frame.t;
+            if (frame.ch0 !== undefined) sendServoCommand(0, frame.ch0);
+        }
+
         if (state.currentSpeed !== 0 || state.currentTurn !== 0) {
             sendMotorCommand(state.currentSpeed, state.currentTurn);
         }
@@ -99,7 +204,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // ══════════════════════════════════════════
     // 3. SERVO ARRAY — CONTINUOUS ROTATION
     // ══════════════════════════════════════════
-    const servoGrid = document.getElementById('servo-grid');
+    const driveGrid = document.getElementById('servo-drive-grid');
+    const gimbalGrid = document.getElementById('servo-gimbal-grid');
+    const armGrid = document.getElementById('servo-arm-grid');
 
     for (let i = 0; i < 8; i++) {
         const ch = document.createElement('div');
@@ -107,7 +214,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const label = document.createElement('span');
         label.className = 'servo-ch-label';
-        label.textContent = i === 0 ? 'CH0 STR' : `CH${i}`;
+        
+        if (i === 0) label.textContent = 'CH0 STR';
+        else if (i === 1) label.textContent = 'CH1 PAN';
+        else if (i === 2) label.textContent = 'CH2 TILT';
+        else label.textContent = `CH${i} ARM${i-2}`;
 
         const sliderWrap = document.createElement('div');
         sliderWrap.className = 'servo-slider-wrap';
@@ -117,6 +228,8 @@ document.addEventListener('DOMContentLoaded', () => {
         slider.min = '-100';
         slider.max = '100';
         slider.value = '0';
+        slider.style.writingMode = 'vertical-lr';
+        slider.style.direction = 'rtl';
         slider.dataset.channel = i;
         slider.id = `servo-slider-${i}`;
 
@@ -167,8 +280,18 @@ document.addEventListener('DOMContentLoaded', () => {
         ch.appendChild(sliderWrap);
         ch.appendChild(valDisplay);
         ch.appendChild(invertBtn);
-        servoGrid.appendChild(ch);
+
+        if (i === 0) {
+            if (driveGrid) driveGrid.appendChild(ch);
+        } else if (i === 1 || i === 2) {
+            if (gimbalGrid) gimbalGrid.appendChild(ch);
+        } else {
+            if (armGrid) armGrid.appendChild(ch);
+        }
     }
+
+    // Zero all servos
+    const btnResetServos = document.getElementById('btn-reset-servos');
 
     function sendServoCommand(channel, speed) {
         // Apply inversion
@@ -225,6 +348,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 const gasPct = Math.min(100, Math.max(0, gasK / 5 * 100));
                 document.getElementById('bar-gas').style.width = gasPct + '%';
 
+                // Log Gas History
+                state.gasHistory.push(gasK);
+                if (state.gasHistory.length > 50) state.gasHistory.shift();
+
+                // Sleep Cycle Logic
+                const hour = new Date().getHours();
+                if (window.sleepCycleEnabled) {
+                    if (hour >= 22 || hour < 6) {
+                        // Sleepy time!
+                        if (state.currentEmotion !== 4) {
+                            fetch('/api/persona', { method: 'POST', body: JSON.stringify({ emotion: 4 }) }); // Sleepy
+                            state.currentEmotion = 4;
+                            document.getElementById('cam-frame').style.opacity = '0.3'; // dim screen
+                        }
+                        if (Math.random() < 0.05) fetch('/api/sound', { method: 'POST', body: JSON.stringify({ sound: 'snore' }) });
+                    } else {
+                        document.getElementById('cam-frame').style.opacity = '1';
+                    }
+                }
+
                 // IMU Roll/Pitch (center at 50% for -90..+90)
                 if (data.roll !== undefined) {
                     document.getElementById('val-roll').textContent = data.roll.toFixed(1) + '°';
@@ -261,7 +404,7 @@ document.addEventListener('DOMContentLoaded', () => {
         .then(res => res.json())
         .then(data => {
             if (data.cam_ip) {
-                document.getElementById('cam-stream').src = `http://${data.cam_ip}:81/stream`;
+                document.getElementById('cam-stream').src = `http://${data.cam_ip}/stream`;
             }
         }).catch(() => {});
 
@@ -386,6 +529,15 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // Toss Treat
+    document.getElementById('btn-treat').addEventListener('click', () => {
+        fetch('/api/action?cmd=treat').catch(() => {});
+        document.getElementById('btn-treat').style.transform = 'scale(0.95)';
+        setTimeout(() => { document.getElementById('btn-treat').style.transform = ''; }, 150);
+        // Ensure UI updates to happy
+        document.querySelector('.emo-btn[data-emotion="1"]').click();
+    });
+
     // ══════════════════════════════════════════
     // 8. SETTINGS
     // ══════════════════════════════════════════
@@ -439,6 +591,19 @@ document.addEventListener('DOMContentLoaded', () => {
         localStorage.setItem('camMirror', state.camMirror);
     });
 
+    // Theme selector
+    const themeSelect = document.getElementById('hud-theme');
+    if (themeSelect) {
+        themeSelect.value = state.hudTheme;
+        themeSelect.addEventListener('change', (e) => {
+            state.hudTheme = e.target.value;
+            localStorage.setItem('hudTheme', state.hudTheme);
+            document.body.className = state.hudTheme === 'green' ? '' : `theme-${state.hudTheme}`;
+            // Update joystick color if needed
+            manager.options.color = getComputedStyle(document.body).getPropertyValue('--accent-green').trim();
+        });
+    }
+
     // Save config
     document.getElementById('btn-save-config').addEventListener('click', () => {
         localStorage.setItem('motorTrimL', state.motorTrimL);
@@ -471,5 +636,40 @@ document.addEventListener('DOMContentLoaded', () => {
         if (confirm('Reboot BuddyBot Core?')) {
             fetch('/api/reboot', { method: 'POST' }).catch(() => {});
         }
+    });
+
+    // ══════════════════════════════════════════
+    // PHASE 4 ADVANCED AI TRIGGERS
+    // ══════════════════════════════════════════
+    document.getElementById('btn-sentry-patrol').addEventListener('click', (e) => {
+        state.sentryMode = (state.sentryMode + 1) % 3;
+        const btn = e.target;
+        
+        if (state.sentryMode === 0) {
+            btn.style.background = '';
+            btn.style.color = '';
+            btn.textContent = '👮 SENTRY PATROL';
+            document.getElementById('sys-alert').textContent = 'PATROL OFF';
+        } else if (state.sentryMode === 1) {
+            btn.style.background = '#ff0055';
+            btn.style.color = '#fff';
+            btn.textContent = '🔴 RECORDING ROUTE';
+            document.getElementById('sys-alert').textContent = 'RECORDING ROUTE. DRIVE NOW.';
+            state.sentryRoute = []; // clear old
+            state.sentryStartTime = Date.now();
+        } else if (state.sentryMode === 2) {
+            btn.style.background = '#00ff41';
+            btn.style.color = '#000';
+            btn.textContent = '▶️ PLAYING ROUTE';
+            document.getElementById('sys-alert').textContent = 'AUTO-PATROL ENGAGED';
+            state.sentryStartTime = Date.now();
+        }
+    });
+
+    document.getElementById('btn-sleep-cycle').addEventListener('click', (e) => {
+        window.sleepCycleEnabled = !window.sleepCycleEnabled;
+        e.target.style.background = window.sleepCycleEnabled ? '#5500ff' : '';
+        e.target.style.color = window.sleepCycleEnabled ? '#fff' : '';
+        document.getElementById('sys-alert').textContent = window.sleepCycleEnabled ? 'SLEEP TIMER ON' : 'SLEEP TIMER OFF';
     });
 });

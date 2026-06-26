@@ -25,6 +25,36 @@
     --radius: 4px;
 }
 
+body.theme-amber {
+    --border-main: rgba(255, 176, 0, 0.25);
+    --border-active: rgba(255, 176, 0, 0.6);
+    --accent-green: #ffb000;
+    --text-primary: #ffe0b2;
+    --text-dim: #8a6a3a;
+    --text-bright: #fff3e0;
+    --glow-green: 0 0 8px rgba(255, 176, 0, 0.3);
+}
+
+body.theme-red {
+    --border-main: rgba(255, 42, 42, 0.25);
+    --border-active: rgba(255, 42, 42, 0.6);
+    --accent-green: #ff2a2a;
+    --text-primary: #ffcdd2;
+    --text-dim: #8a3a3a;
+    --text-bright: #ffebee;
+    --glow-green: 0 0 8px rgba(255, 42, 42, 0.4);
+}
+
+body.theme-cyan {
+    --border-main: rgba(0, 229, 255, 0.25);
+    --border-active: rgba(0, 229, 255, 0.6);
+    --accent-green: #00e5ff;
+    --text-primary: #b2ebf2;
+    --text-dim: #3a7a8a;
+    --text-bright: #e0f7fa;
+    --glow-green: 0 0 8px rgba(0, 229, 255, 0.3);
+}
+
 /* Reset */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 body {
@@ -477,11 +507,14 @@ body {
 
 /* ── Servo Array ── */
 .servo-grid {
-    display: grid;
-    grid-template-columns: repeat(8, 1fr);
+    display: flex;
     gap: 6px;
+    flex-wrap: wrap;
 }
 .servo-ch {
+    flex: 1 1 0;
+    min-width: 45px;
+    max-width: 70px;
     background: var(--bg-input);
     border: 1px solid rgba(0,255,65,0.1);
     border-radius: var(--radius);
@@ -511,8 +544,7 @@ body {
 .servo-slider-wrap input[type="range"] {
     writing-mode: vertical-lr;
     direction: rtl;
-    -webkit-appearance: slider-vertical;
-    appearance: slider-vertical;
+    background: transparent;
     width: 20px;
     height: 100%;
     background: transparent;
@@ -654,6 +686,19 @@ input[type=range]::-webkit-slider-runnable-track {
     .hud-bar {
         flex-direction: column;
         text-align: center;
+        padding: 5px;
+    }
+    .action-btn, .sfx-btn, .emo-btn {
+        min-height: 54px; /* very touch friendly */
+        font-size: 14px;
+        padding: 10px;
+    }
+    .panel {
+        margin-bottom: 20px;
+    }
+    .dj-pad-overlay, .simon-overlay, .chatbot-overlay {
+        top: 2%; left: 2%; right: 2%; bottom: 2%;
+        padding: 10px;
     }
 }
 

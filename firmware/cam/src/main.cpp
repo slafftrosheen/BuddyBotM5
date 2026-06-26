@@ -1,9 +1,8 @@
 #include <Arduino.h>
 #include <WiFi.h>
-#include "esp_camera.h"
-#include "esp_http_server.h"
-
 #include <WiFiMulti.h>
+#include "esp_camera.h"
+#include <ArduinoOTA.h>
 
 WiFiMulti wifiMulti;
 const char* password = "Slaff181188";
@@ -26,127 +25,60 @@ const char* password = "Slaff181188";
 #define HREF_GPIO_NUM     14
 #define PCLK_GPIO_NUM     40
 
-httpd_handle_t stream_httpd = NULL;
-
-static esp_err_t stream_handler(httpd_req_t *req) {
-    camera_fb_t * fb = NULL;
-    esp_err_t res = ESP_OK;
-    size_t _jpg_buf_len = 0;
-    uint8_t * _jpg_buf = NULL;
-    char * part_buf[64];
-
-    res = httpd_resp_set_type(req, "multipart/x-mixed-replace;boundary=123456789000000000000987654321");
-    if(res != ESP_OK) return res;
-
-    while(true) {
-        fb = esp_camera_fb_get();
-        if (!fb) {
-            Serial.println("Camera capture failed");
-            res = ESP_FAIL;
-        } else {
-            if(fb->format != PIXFORMAT_JPEG) {
-                bool jpeg_converted = frame2jpg(fb, 80, &_jpg_buf, &_jpg_buf_len);
-                esp_camera_fb_return(fb);
-                fb = NULL;
-                if(!jpeg_converted){
-                    Serial.println("JPEG compression failed");
-                    res = ESP_FAIL;
-                }
-            } else {
-                _jpg_buf_len = fb->len;
-                _jpg_buf = fb->buf;
-            }
-        }
-        if(res == ESP_OK){
-            size_t hlen = snprintf((char *)part_buf, 64, "\r\n--123456789000000000000987654321\r\nContent-Type: image/jpeg\r\nContent-Length: %u\r\n\r\n", _jpg_buf_len);
-            res = httpd_resp_send_chunk(req, (const char *)part_buf, hlen);
-        }
-        if(res == ESP_OK){
-            res = httpd_resp_send_chunk(req, (const char *)_jpg_buf, _jpg_buf_len);
-        }
-        if(res == ESP_OK){
-            res = httpd_resp_send_chunk(req, "\r\n", 2);
-        }
-        if(fb){
-            esp_camera_fb_return(fb);
-            fb = NULL;
-            _jpg_buf = NULL;
-        } else if(_jpg_buf){
-            free(_jpg_buf);
-            _jpg_buf = NULL;
-        }
-        if(res != ESP_OK){
-            break;
-        }
-    }
-    return res;
-}
-
-void startCameraServer() {
-    httpd_config_t config = HTTPD_DEFAULT_CONFIG();
-    config.server_port = 81;
-
-    httpd_uri_t stream_uri = {
-        .uri       = "/stream",
-        .method    = HTTP_GET,
-        .handler   = stream_handler,
-        .user_ctx  = NULL
-    };
-    
-    if (httpd_start(&stream_httpd, &config) == ESP_OK) {
-        httpd_register_uri_handler(stream_httpd, &stream_uri);
-    }
-}
-
-#include <ArduinoOTA.h>
-
 #define POWER_GPIO_NUM 18
+
+WiFiServer server(80);
+camera_fb_t* fb    = NULL;
+uint8_t* out_jpg   = NULL;
+size_t out_jpg_len = 0;
+
+static void jpegStream(WiFiClient* client);
+
+static camera_config_t camera_config = {
+    .pin_pwdn     = PWDN_GPIO_NUM,
+    .pin_reset    = RESET_GPIO_NUM,
+    .pin_xclk     = XCLK_GPIO_NUM,
+    .pin_sscb_sda = SIOD_GPIO_NUM,
+    .pin_sscb_scl = SIOC_GPIO_NUM,
+    .pin_d7       = Y9_GPIO_NUM,
+    .pin_d6       = Y8_GPIO_NUM,
+    .pin_d5       = Y7_GPIO_NUM,
+    .pin_d4       = Y6_GPIO_NUM,
+    .pin_d3       = Y5_GPIO_NUM,
+    .pin_d2       = Y4_GPIO_NUM,
+    .pin_d1       = Y3_GPIO_NUM,
+    .pin_d0       = Y2_GPIO_NUM,
+
+    .pin_vsync = VSYNC_GPIO_NUM,
+    .pin_href  = HREF_GPIO_NUM,
+    .pin_pclk  = PCLK_GPIO_NUM,
+
+    .xclk_freq_hz = 20000000,
+    .ledc_timer   = LEDC_TIMER_0,
+    .ledc_channel = LEDC_CHANNEL_0,
+
+    .pixel_format = PIXFORMAT_JPEG,
+    .frame_size   = FRAMESIZE_QVGA,
+    .jpeg_quality  = 12,
+    .fb_count      = 2,
+    .fb_location   = CAMERA_FB_IN_PSRAM,
+    .grab_mode     = CAMERA_GRAB_LATEST,
+    .sccb_i2c_port = 0,
+};
 
 void setup() {
     Serial.begin(115200);
-    delay(1000);
     
     // Enable Camera Power
     pinMode(POWER_GPIO_NUM, OUTPUT);
-    digitalWrite(POWER_GPIO_NUM, LOW); // LOW is definitely correct
+    digitalWrite(POWER_GPIO_NUM, LOW);
     delay(500);
 
     Serial.setDebugOutput(true);
     Serial.println();
     Serial.printf("PSRAM size: %d, free: %d\n", ESP.getPsramSize(), ESP.getFreePsram());
 
-    camera_config_t config;
-    memset(&config, 0, sizeof(config));
-    
-    config.ledc_channel = LEDC_CHANNEL_0;
-    config.ledc_timer = LEDC_TIMER_0;
-    config.pin_d0 = Y2_GPIO_NUM;
-    config.pin_d1 = Y3_GPIO_NUM;
-    config.pin_d2 = Y4_GPIO_NUM;
-    config.pin_d3 = Y5_GPIO_NUM;
-    config.pin_d4 = Y6_GPIO_NUM;
-    config.pin_d5 = Y7_GPIO_NUM;
-    config.pin_d6 = Y8_GPIO_NUM;
-    config.pin_d7 = Y9_GPIO_NUM;
-    config.pin_xclk = XCLK_GPIO_NUM;
-    config.pin_pclk = PCLK_GPIO_NUM;
-    config.pin_vsync = VSYNC_GPIO_NUM;
-    config.pin_href = HREF_GPIO_NUM;
-    config.pin_sscb_sda = SIOD_GPIO_NUM;
-    config.pin_sscb_scl = SIOC_GPIO_NUM;
-    config.pin_pwdn = PWDN_GPIO_NUM;
-    config.pin_reset = RESET_GPIO_NUM;
-    config.xclk_freq_hz = 10000000; // GC0308 might need lower XCLK
-    config.pixel_format = PIXFORMAT_RGB565;
-    config.frame_size = FRAMESIZE_QVGA;
-    config.jpeg_quality = 12;
-    config.fb_count = 1;
-    config.fb_location = psramFound() ? CAMERA_FB_IN_PSRAM : CAMERA_FB_IN_DRAM;
-    config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
-    config.sccb_i2c_port = 0;
-
-    // Init Camera
-    esp_err_t err = esp_camera_init(&config);
+    esp_err_t err = esp_camera_init(&camera_config);
     if (err != ESP_OK) {
         Serial.printf("Camera init failed with error 0x%x\n", err);
         delay(1000);
@@ -164,13 +96,11 @@ void setup() {
     Serial.println("");
     Serial.println("WiFi connected");
 
-    startCameraServer();
+    server.begin();
 
     Serial.print("Camera Stream Ready! Go to: http://");
     Serial.print(WiFi.localIP());
-    Serial.println(":81/stream");
-    
-    Serial.println(":81/stream");
+    Serial.println("/stream");
 
     ArduinoOTA.setHostname("BuddyBot-Cam");
     ArduinoOTA.begin();
@@ -178,5 +108,75 @@ void setup() {
 
 void loop() {
     ArduinoOTA.handle();
-    delay(10);
+    
+    WiFiClient client = server.available();  // listen for incoming clients
+    if (client) {                            // if you get a client,
+        String req = client.readStringUntil('\r');
+        client.flush();
+        
+        if (req.indexOf("/stream") != -1) {
+            jpegStream(&client);
+        } else {
+            // Index page
+            client.println("HTTP/1.1 200 OK");
+            client.println("Content-Type: text/html");
+            client.println("Connection: close");
+            client.println();
+            client.println("<!DOCTYPE html><html><head><title>Camera Stream</title><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"></head><body style=\"background-color:black;color:white;text-align:center;margin:0;padding:0;\"><h2>BuddyBot Camera Feed</h2><img src=\"/stream\" style=\"width:100%;max-width:640px;\"></body></html>");
+            client.stop();
+        }
+    }
+}
+
+// used to image stream
+#define PART_BOUNDARY "123456789000000000000987654321"
+static const char* _STREAM_CONTENT_TYPE = "multipart/x-mixed-replace;boundary=" PART_BOUNDARY;
+static const char* _STREAM_BOUNDARY     = "--" PART_BOUNDARY "\r\n";
+static const char* _STREAM_PART         = "Content-Type: image/jpeg\r\nContent-Length: %u\r\n\r\n";
+
+static void jpegStream(WiFiClient* client) {
+    Serial.println("Image stream start");
+    client->println("HTTP/1.1 200 OK");
+    client->printf("Content-Type: %s\r\n", _STREAM_CONTENT_TYPE);
+    client->println("Content-Disposition: inline; filename=capture.jpg");
+    client->println("Access-Control-Allow-Origin: *");
+    client->println();
+    
+    for (;;) {
+        ArduinoOTA.handle(); // keep OTA alive during stream
+        
+        fb = esp_camera_fb_get();
+        if (fb) {
+            client->print(_STREAM_BOUNDARY);
+            client->printf(_STREAM_PART, fb->len);
+            
+            int32_t to_sends    = fb->len;
+            int32_t now_sends   = 0;
+            uint8_t* out_buf    = fb->buf;
+            uint32_t packet_len = 8 * 1024;
+            
+            while (to_sends > 0) {
+                now_sends = to_sends > packet_len ? packet_len : to_sends;
+                if (client->write(out_buf, now_sends) == 0) {
+                    goto client_exit;
+                }
+                out_buf += now_sends;
+                to_sends -= now_sends;
+            }
+
+            esp_camera_fb_return(fb);
+            fb = NULL;
+        } else {
+            Serial.println("Camera capture failed");
+            delay(100);
+        }
+    }
+
+client_exit:
+    if (fb) {
+        esp_camera_fb_return(fb);
+        fb = NULL;
+    }
+    client->stop();
+    Serial.printf("Image stream end\r\n");
 }

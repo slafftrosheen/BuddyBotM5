@@ -4,8 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>BuddyBot M5 — Tactical Command</title>
+    <link rel="icon" href="data:,">
     <link rel="stylesheet" href="style.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/nipplejs/0.10.1/nipplejs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
 </head>
 <body>
@@ -36,7 +38,7 @@
                         <span class="panel-badge" id="cam-fps">-- FPS</span>
                     </div>
                     <div class="cam-frame">
-                        <img id="cam-stream" src="" alt="NO SIGNAL" />
+                        <img id="cam-stream" src="" crossorigin="anonymous" alt="NO SIGNAL" />
                         <div class="cam-hud-overlay">
                             <div class="cam-grid"></div>
                             <div class="cam-crosshair"></div>
@@ -84,6 +86,41 @@
                         </div>
                     </div>
                 </section>
+
+                <!-- Stopwatch -->
+                <section class="panel timer-panel">
+                    <div class="panel-header">
+                        <span class="panel-title">⏱ MISSION TIMER</span>
+                    </div>
+                    <div class="timer-display" id="timer-display" style="font-size: 2.5em; text-align: center; margin: 10px 0; color: #00f3ff; font-family: 'Orbitron', sans-serif;">00:00.00</div>
+                    <div class="timer-controls" style="display: flex; gap: 10px; justify-content: center;">
+                        <button class="action-btn" id="btn-timer-start">START</button>
+                        <button class="action-btn danger" id="btn-timer-stop">STOP</button>
+                        <button class="action-btn" id="btn-timer-reset">RESET</button>
+                    </div>
+                </section>
+
+                <!-- Tamagotchi Needs & XP -->
+                <section class="panel tamagotchi-panel">
+                    <div class="panel-header">
+                        <span class="panel-title">♥ VITALS & XP</span>
+                        <span class="panel-badge" id="lvl-badge">LVL 1</span>
+                    </div>
+                    <div class="telem-grid">
+                        <div class="telem-item" style="grid-column: span 2;">
+                            <div class="telem-bar-track"><div class="telem-bar" id="bar-xp" style="width:0%; background:#ffd700;"></div></div>
+                            <div class="telem-info"><span class="telem-label">XP</span><span class="telem-value" id="val-xp">0/100</span></div>
+                        </div>
+                        <div class="telem-item">
+                            <div class="telem-bar-track"><div class="telem-bar" id="bar-hunger" style="width:100%; background:#ffaa00;"></div></div>
+                            <div class="telem-info"><span class="telem-label">FOOD</span><span class="telem-value" id="val-hunger">100%</span></div>
+                        </div>
+                        <div class="telem-item">
+                            <div class="telem-bar-track"><div class="telem-bar" id="bar-energy" style="width:100%; background:#00ffaa;"></div></div>
+                            <div class="telem-info"><span class="telem-label">NRG</span><span class="telem-value" id="val-energy">100%</span></div>
+                        </div>
+                    </div>
+                </section>
             </div>
 
             <!-- RIGHT COLUMN -->
@@ -118,6 +155,10 @@
                         <button class="emo-btn" data-emotion="5"><span class="emo-icon">◡</span>SAD</button>
                         <button class="emo-btn" data-emotion="6"><span class="emo-icon">?</span>CURIOUS</button>
                         <button class="emo-btn" data-emotion="7"><span class="emo-icon">!</span>ALERT</button>
+                        <button class="emo-btn" data-emotion="8"><span class="emo-icon">♡</span>LOVE</button>
+                        <button class="emo-btn" data-emotion="9"><span class="emo-icon">⚡</span>SHOCK</button>
+                        <button class="emo-btn" data-emotion="10"><span class="emo-icon">⚆</span>DIZZY</button>
+                        <button class="emo-btn" data-emotion="11"><span class="emo-icon">⌐■</span>COOL</button>
                     </div>
                     <!-- Persona Customization (hidden by default) -->
                     <div class="persona-custom" id="persona-custom" style="display:none;">
@@ -150,19 +191,100 @@
                         <button class="sfx-btn" data-sound="melody">🎵 MELODY</button>
                         <button class="action-btn" id="btn-dance">💃 DANCE MODE</button>
                         <button class="action-btn" id="btn-wander">🧭 AUTO WANDER</button>
+                        <button class="action-btn" id="btn-treat" style="grid-column: span 2; background: rgba(255, 165, 0, 0.2); border-color: orange; color: orange;">🍖 TOSS TREAT</button>
+                        
+                        <!-- NEW MINIGAMES -->
+                        <div style="grid-column: span 2; display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-top: 10px;">
+                            <button class="action-btn" id="btn-parrot">🦜 PARROT REC</button>
+                            <button class="action-btn" id="btn-simon">🧠 SIMON SAYS</button>
+                            <button class="action-btn" id="btn-voice-cmd">🎙️ COMM LINK</button>
+                            <button class="action-btn" id="btn-hide-seek">📡 PING HIDE&SEEK</button>
+                            <button class="action-btn" id="btn-color-game">🎨 COLOR GAME</button>
+                            <button class="action-btn" id="btn-guard-mode">🛡️ GUARD MODE</button>
+                            <button class="action-btn" id="btn-dj-open" style="grid-column: span 2;">🎛️ OPEN DJ PAD</button>
+                        </div>
+
+                        <!-- PHASE 3 & ROADMAP -->
+                        <div style="grid-column: span 2; border-top: 1px solid var(--accent-green); margin-top:10px; padding-top:10px;">
+                            <span style="font-size: 0.8em; color:var(--accent-green);">AI ENGINE</span>
+                        </div>
+                        <div style="grid-column: span 2; display: grid; grid-template-columns: 1fr 1fr; gap: 5px;">
+                            <button class="action-btn" id="btn-chatbot-open">🤖 AI CHATBOT</button>
+                            <button class="action-btn" id="btn-auto-nav">🛣️ AUTO-NAV</button>
+                            <button class="action-btn" id="btn-face-track">👤 FACE TRACK</button>
+                            <button class="action-btn" id="btn-sentry-patrol">👮 SENTRY PATROL</button>
+                            <button class="action-btn" id="btn-sleep-cycle">💤 SLEEP CYCLE</button>
+                            <button class="action-btn" id="btn-color-track">🎾 FETCH COLOR</button>
+                            <button class="action-btn" id="btn-qr-scan">📷 SCAN WAYPOINT</button>
+                        </div>
                     </div>
                 </section>
+
+                <!-- Chatbot Overlay -->
+                <div class="chatbot-overlay" id="chatbot-pad" style="display:none; position:absolute; top:10%; left:10%; right:10%; bottom:10%; background:rgba(0,0,0,0.95); z-index:100; border:2px solid var(--accent-green); border-radius:10px; padding:20px; display:flex; flex-direction:column;">
+                    <div class="panel-header" style="flex-shrink:0;">
+                        <span class="panel-title">🤖 AI CHATBOT TERMINAL</span>
+                        <button class="panel-btn" id="btn-close-chatbot">✖</button>
+                    </div>
+                    <div id="chat-history" style="flex-grow:1; overflow-y:auto; margin:10px 0; border:1px solid #333; padding:10px; font-family:var(--font-mono); font-size:14px;">
+                        <div style="color:var(--accent-green);">[SYSTEM] Chatbot initialized. Awaiting input.</div>
+                    </div>
+                    <div style="display:flex; gap:10px; flex-shrink:0;">
+                        <input type="password" id="openai-key" placeholder="OpenAI API Key (Optional)" style="flex-grow:1; background:#111; color:#fff; border:1px solid var(--accent-green); padding:5px; font-family:var(--font-mono); font-size:10px; margin-bottom:5px;">
+                    </div>
+                    <div style="display:flex; gap:10px; flex-shrink:0;">
+                        <input type="text" id="chat-input" placeholder="Type message or use COMM LINK..." style="flex-grow:1; background:#111; color:#fff; border:1px solid var(--accent-green); padding:10px; font-family:var(--font-mono);">
+                        <button class="action-btn" id="btn-chat-send" style="width:100px;">SEND</button>
+                        <button class="action-btn" id="btn-chat-vision" style="width:50px;" title="What do you see?">👁️</button>
+                    </div>
+                </div>
+
+                <!-- Music DJ Pad (Hidden by default, overlays when active) -->
+                <div class="dj-pad-overlay" id="dj-pad" style="display:none; position:absolute; top:10%; left:10%; right:10%; bottom:10%; background:rgba(0,0,0,0.9); z-index:100; border:2px solid #00f3ff; border-radius:10px; padding:20px;">
+                    <div class="panel-header">
+                        <span class="panel-title">🎛️ MUSIC DJ BEATBOX</span>
+                        <button class="panel-btn" id="btn-close-dj">✖</button>
+                    </div>
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; height:calc(100% - 40px); margin-top:10px;">
+                        <button class="dj-btn" data-sound="kick" style="background:#ff0055; font-size:2em;">KICK</button>
+                        <button class="dj-btn" data-sound="snare" style="background:#00f3ff; font-size:2em;">SNARE</button>
+                        <button class="dj-btn" data-sound="hihat" style="background:#ffaa00; font-size:2em;">HIHAT</button>
+                        <button class="dj-btn" data-sound="scratch" style="background:#aa00ff; font-size:2em;">SCRATCH</button>
+                    </div>
+                </div>
+
+                <!-- Simon Says Overlay -->
+                <div class="simon-overlay" id="simon-pad" style="display:none; position:absolute; top:10%; left:10%; right:10%; bottom:10%; background:rgba(0,0,0,0.9); z-index:100; border:2px solid #00f3ff; border-radius:10px; padding:20px;">
+                    <div class="panel-header">
+                        <span class="panel-title">🧠 SIMON SAYS</span>
+                        <span class="panel-badge" id="simon-score">SCORE: 0</span>
+                        <button class="panel-btn" id="btn-close-simon">✖</button>
+                    </div>
+                    <div style="text-align:center; margin:10px 0; color:#fff;" id="simon-status">WATCH THE ROBOT EYES...</div>
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; height:calc(100% - 80px);">
+                        <button class="simon-btn" data-color="red" style="background:rgba(255,0,0,0.5); border:2px solid red;"></button>
+                        <button class="simon-btn" data-color="blue" style="background:rgba(0,0,255,0.5); border:2px solid blue;"></button>
+                        <button class="simon-btn" data-color="green" style="background:rgba(0,255,0,0.5); border:2px solid green;"></button>
+                        <button class="simon-btn" data-color="yellow" style="background:rgba(255,255,0,0.5); border:2px solid yellow;"></button>
+                    </div>
+                </div>
+
             </div>
 
             <!-- BOTTOM FULL-WIDTH — Servo Array -->
             <section class="panel servo-panel full-width">
                 <div class="panel-header">
-                    <span class="panel-title">⚙ SERVO ARRAY — CONTINUOUS ROTATION</span>
-                    <span class="panel-note">CH0 = STEERING (auto-linked to joystick)</span>
+                    <span class="panel-title">⚙ HARDWARE CONTROL LINKS</span>
                 </div>
-                <div class="servo-grid" id="servo-grid">
-                    <!-- Generated by JS -->
-                </div>
+                
+                <div style="font-size:12px; color:var(--text-dim); margin-top:5px; border-bottom: 1px solid #333; padding-bottom:3px;">DRIVE ASSIST</div>
+                <div class="servo-grid" id="servo-drive-grid" style="margin-bottom:10px;"></div>
+                
+                <div style="font-size:12px; color:var(--text-dim); margin-top:5px; border-bottom: 1px solid #333; padding-bottom:3px;">CAMERA GIMBAL</div>
+                <div class="servo-grid" id="servo-gimbal-grid" style="margin-bottom:10px;"></div>
+                
+                <div style="font-size:12px; color:var(--text-dim); margin-top:5px; border-bottom: 1px solid #333; padding-bottom:3px;">MANIPULATOR ARM</div>
+                <div class="servo-grid" id="servo-arm-grid"></div>
             </section>
 
             <!-- Settings -->
@@ -191,6 +313,15 @@
                             <label>Cam Mirror</label>
                             <button class="toggle-btn" id="cam-mirror">OFF</button>
                         </div>
+                        <div class="setting-item" style="grid-column: span 2;">
+                            <label>HUD Theme (Requires Reload)</label>
+                            <select id="hud-theme" style="background:var(--bg-input); border:1px solid var(--border-main); color:var(--accent-green); font-family:var(--font-mono); padding:4px;">
+                                <option value="green">TACTICAL GREEN</option>
+                                <option value="amber">WARNING AMBER</option>
+                                <option value="red">COMBAT RED</option>
+                                <option value="cyan">STEALTH CYAN</option>
+                            </select>
+                        </div>
                     </div>
                     <div class="settings-actions">
                         <button class="action-btn" id="btn-save-config">💾 SAVE CONFIG</button>
@@ -205,7 +336,11 @@
             <span id="heap-info">HEAP: --</span>
             <span id="wifi-rssi">RSSI: --</span>
         </footer>
+        <!-- Hidden canvas for Computer Vision -->
+        <canvas id="cv-canvas" width="320" height="240" style="display:none;"></canvas>
     </div>
-    <script src="app.js"></script>
+    <script src="app.js?v=3.0"></script>
+    <script src="gamification.js?v=2.0"></script>
+    <script src="chatbot.js?v=1.0"></script>
 </body>
 </html>

@@ -199,6 +199,8 @@
  C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32/libraries/WiFi/src/WiFiUdp.h \
  C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32/cores/esp32/Udp.h \
  C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32/cores/esp32/cbuf.h \
+ C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32/libraries/WiFi/src/WiFiMulti.h \
+ C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32/libraries/WiFi/src/WiFi.h \
  C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32s3/include/esp32-camera/driver/include/esp_camera.h \
  C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32s3/include/driver/include/driver/ledc.h \
  C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32s3/include/hal/include/hal/ledc_types.h \
@@ -207,10 +209,6 @@
  C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32s3/include/esp32-camera/driver/include/sensor.h \
  C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32s3/include/esp32-camera/conversions/include/img_converters.h \
  C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32s3/include/esp32-camera/conversions/include/esp_jpg_decode.h \
- C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32s3/include/esp_http_server/include/esp_http_server.h \
- C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32s3/include/nghttp/port/include/http_parser.h \
- C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32/libraries/WiFi/src/WiFiMulti.h \
- C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32/libraries/WiFi/src/WiFi.h \
  C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32/libraries/ArduinoOTA/src/ArduinoOTA.h \
  C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32/libraries/Update/src/Update.h \
  C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32/cores/esp32/MD5Builder.h \
