@@ -212,4 +212,5 @@
  C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32/libraries/ArduinoOTA/src/ArduinoOTA.h \
  C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32/libraries/Update/src/Update.h \
  C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32/cores/esp32/MD5Builder.h \
- C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32s3/include/esp_rom/include/esp_rom_md5.h
+ C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32s3/include/esp_rom/include/esp_rom_md5.h \
+ src/VoiceAssistant.h

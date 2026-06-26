@@ -9,6 +9,22 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/nipplejs/0.10.1/nipplejs.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
+    <script>
+        // Global error handler to catch JS errors and display them on the UI
+        window.onerror = function(msg, url, lineNo, columnNo, error) {
+            const errStr = `JS ERR: ${msg} @ ${lineNo}:${columnNo}`;
+            console.error(errStr, error);
+            const alertEl = document.getElementById('sys-alert');
+            if (alertEl) alertEl.textContent = errStr;
+            return false;
+        };
+        window.addEventListener('unhandledrejection', function(event) {
+            const errStr = `PROMISE ERR: ${event.reason}`;
+            console.error(errStr);
+            const alertEl = document.getElementById('sys-alert');
+            if (alertEl) alertEl.textContent = errStr;
+        });
+    </script>
 </head>
 <body>
     <div class="scanlines"></div>

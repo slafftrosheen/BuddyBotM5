@@ -4,11 +4,13 @@ Pet-alike bot built using Lego Technic parts and M5Stack electronics.
 
 ## System Architecture
 
-BuddyBot consists of two main processing units connected over WiFi:
-* **Brain (M5Stack CoreS3 SE)**: Handles motor control, servo control, persona rendering, web serving, and telemetry.
-* **Eye (M5Stack ATOM S3R CAM)**: Streams live MJPEG video from a GC0308 sensor over the local network.
+BuddyBot utilizes a distributed 3-tier architecture connected over WiFi:
+1. **The Body (M5Stack CoreS3 SE)**: Handles motor control, servo control, web serving (Tactical UI), telemetry (BME680, IMU), and rendering the Persona Engine.
+2. **The Eye/Ear/Mouth (M5Stack ATOM S3R CAM + EchoBase)**: Streams live MJPEG video from a GC0308 sensor over the local network and handles raw audio recording and playback via I2S.
+3. **The Brain (Raspberry Pi Zero 2W)**: Runs a local Python server. Hosts the intelligence logic, routing audio from the ESP32 to the Gemini API (`gemini-1.5-flash`), generating responses using local Text-to-Speech (gTTS/Piper), and streaming PCM audio back to the robot.
 
-Both units communicate over a unified WiFi network (SSID: `STARLINK.TAK` or `TAK`).
+### Network Topology (Portability)
+To make BuddyBot completely portable away from home, the **Pi Zero 2W** broadcasts a WiFi Hotspot (SSID: `BuddyBot-Brain`, Password: `BuddyBot123`). Both the CoreS3 and the ATOM CAM are programmed to automatically connect to this hotspot if available, or fall back to your home router (`STARLINK.TAK` / `TAK`).
 
 ## Tactical Web UI
 
@@ -49,3 +51,28 @@ Use PlatformIO to build and flash the firmware. For OTA updates, add `--upload-p
 pio run -t upload --upload-port 10.140.12.80   # CoreS3
 pio run -t upload --upload-port 10.140.12.137  # ATOM CAM
 ```
+
+## Setup: Pi Zero 2W (The Brain)
+
+To give BuddyBot its intelligence and natural voice, you need to set up the Pi Zero 2W:
+
+### 1. Enable WiFi Hotspot
+On your Pi Zero 2W (running Raspberry Pi OS), use `nmcli` to create the hotspot:
+```bash
+sudo nmcli dev wifi hotspot ifname wlan0 ssid BuddyBot-Brain password BuddyBot123
+```
+*Note: By default, NetworkManager hotspots assign the IP `10.42.0.1` to the Pi.*
+
+### 2. Run the AI Server
+Copy the `server/` directory from this repository to your Pi Zero 2W.
+```bash
+# Install ffmpeg (required for audio format conversion)
+sudo apt update && sudo apt install ffmpeg
+
+# Install python dependencies
+pip install -r requirements.txt
+
+# Run the server
+python brain.py
+```
+*Make sure `PI_SERVER_URL` in `firmware/cam/src/VoiceAssistant.cpp` matches your Pi's hotspot IP address (`http://10.42.0.1:8000/api/voice`) before flashing the ATOM CAM.*

@@ -3,7 +3,7 @@
 #include <WiFiMulti.h>
 #include "esp_camera.h"
 #include <ArduinoOTA.h>
-
+#include "VoiceAssistant.h"
 WiFiMulti wifiMulti;
 const char* password = "Slaff181188";
 
@@ -86,6 +86,7 @@ void setup() {
     }
 
     WiFi.mode(WIFI_STA);
+    wifiMulti.addAP("BuddyBot-Brain", "BuddyBot123"); // Pi Zero Hotspot
     wifiMulti.addAP("STARLINK.TAK", password);
     wifiMulti.addAP("TAK", password);
     
@@ -102,12 +103,15 @@ void setup() {
     Serial.print(WiFi.localIP());
     Serial.println("/stream");
 
+    initVoiceAssistant();
+
     ArduinoOTA.setHostname("BuddyBot-Cam");
     ArduinoOTA.begin();
 }
 
 void loop() {
     ArduinoOTA.handle();
+    handleVoiceAssistant();
     
     WiFiClient client = server.available();  // listen for incoming clients
     if (client) {                            // if you get a client,
