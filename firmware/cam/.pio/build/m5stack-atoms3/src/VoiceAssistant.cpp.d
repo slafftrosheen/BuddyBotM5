@@ -200,8 +200,6 @@
  C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32/libraries/WiFi/src/WiFiUdp.h \
  C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32/cores/esp32/Udp.h \
  C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32/cores/esp32/cbuf.h \
- C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32/libraries/HTTPClient/src/HTTPClient.h \
- C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32/libraries/WiFi/src/WiFiClient.h \
  C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32/libraries/WiFiClientSecure/src/WiFiClientSecure.h \
  C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32/libraries/WiFiClientSecure/src/ssl_client.h \
  C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32s3/include/mbedtls/mbedtls/include/mbedtls/platform.h \
@@ -241,6 +239,10 @@
  C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32s3/include/mbedtls/port/include/aes/esp_aes.h \
  C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32s3/include/hal/include/hal/aes_types.h \
  C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32s3/include/mbedtls/mbedtls/include/mbedtls/error.h \
+ C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32/libraries/HTTPClient/src/HTTPClient.h \
+ C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32/libraries/WiFi/src/WiFiClient.h \
+ C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32/libraries/ESPmDNS/src/ESPmDNS.h \
+ C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32s3/include/mdns/include/mdns.h \
  .pio/libdeps/m5stack-atoms3/M5Atomic-EchoBase/src/M5EchoBase.h \
  C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32/libraries/Wire/src/Wire.h \
  C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32/cores/esp32/esp32-hal.h \

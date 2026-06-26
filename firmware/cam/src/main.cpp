@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <WiFiMulti.h>
+#include <ESPmDNS.h>
 #include "esp_camera.h"
 #include <ArduinoOTA.h>
 #include "VoiceAssistant.h"
