@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const state = {
         xp: parseInt(localStorage.getItem('botXP') || '0'),
         level: parseInt(localStorage.getItem('botLevel') || '1'),
+        health: parseFloat(localStorage.getItem('botHealth') || '100'),
         hunger: parseFloat(localStorage.getItem('botHunger') || '100'),
         energy: parseFloat(localStorage.getItem('botEnergy') || '100'),
         happiness: parseFloat(localStorage.getItem('botHappiness') || '100'),
@@ -30,6 +31,8 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('bar-energy').style.width = state.energy + '%';
         document.getElementById('val-happy').textContent = Math.round(state.happiness) + '%';
         document.getElementById('bar-happy').style.width = state.happiness + '%';
+        document.getElementById('val-hp').textContent = Math.round(state.health) + '%';
+        document.getElementById('bar-hp').style.width = state.health + '%';
 
         // Warning colors
         document.getElementById('bar-hunger').style.background = state.hunger < 30 ? '#ff0000' : '#ffaa00';
@@ -55,6 +58,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function saveNeeds() {
         localStorage.setItem('botXP', state.xp);
         localStorage.setItem('botLevel', state.level);
+        localStorage.setItem('botHealth', state.health);
         localStorage.setItem('botHunger', state.hunger);
         localStorage.setItem('botEnergy', state.energy);
         localStorage.setItem('botHappiness', state.happiness);
@@ -66,6 +70,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Hunger & Happiness decay naturally
         state.hunger = Math.max(0, state.hunger - 0.5); // Slow decay
         state.happiness = Math.max(0, state.happiness - 0.2);
+        state.health = Math.min(100, state.health + 0.5); // Slow regen
         
         // Energy logic
         if (window.isDriving) {
@@ -345,6 +350,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if(state.qrScan) document.getElementById('sys-alert').textContent = 'SCANNING WAYPOINTS';
     });
 
+    // CV Variables
+    let lastAvgLuma = 0;
+    let isStunned = false;
+
     // CV Loop
     function cvLoop() {
         if (!state.guardMode && !state.colorGame && !state.autoNav && !state.faceTrack && !state.colorTrack && !state.qrScan) {
@@ -355,9 +364,41 @@ document.addEventListener('DOMContentLoaded', () => {
         if (camImg.complete && camImg.naturalWidth !== 0) {
             // Draw current camera frame to hidden canvas
             try {
-                ctx.drawImage(camImg, 0, 0, canvas.width, canvas.height);
+                // If stunned, draw a red tint
+                if (isStunned) {
+                    ctx.fillStyle = 'rgba(255, 0, 0, 0.3)';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                } else {
+                    ctx.drawImage(camImg, 0, 0, canvas.width, canvas.height);
+                }
+                
                 const currentImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
                 const data = currentImageData.data;
+
+                // -- LASER TAG HIT DETECTION --
+                if (!isStunned) {
+                    let totalLuma = 0;
+                    for (let i = 0; i < data.length; i += 16) { // Sparse check
+                        totalLuma += (data[i] * 0.299 + data[i+1] * 0.587 + data[i+2] * 0.114);
+                    }
+                    let avgLuma = totalLuma / (data.length / 16);
+                    
+                    if (lastAvgLuma > 0 && avgLuma - lastAvgLuma > 60) {
+                        // Flash detected! (Damage)
+                        state.health = Math.max(0, state.health - 25);
+                        document.getElementById('sys-alert').textContent = '⚠ HIT DETECTED! ⚠';
+                        fetch('/api/sound', { method: 'POST', body: JSON.stringify({ sound: 'sneeze' }) }); // Hurt sound
+                        fetch('/api/persona', { method: 'POST', body: JSON.stringify({ emotion: 2 }) }); // Angry
+                        saveNeeds();
+                        
+                        isStunned = true;
+                        setTimeout(() => { isStunned = false; }, 2000);
+                    }
+                    lastAvgLuma = avgLuma;
+                }
+
+                // If stunned, skip other tracking
+                if (!isStunned) {
 
                 // -- GUARD MODE (Motion Detection) --
                 if (state.guardMode) {
@@ -491,6 +532,31 @@ document.addEventListener('DOMContentLoaded', () => {
                         const errorX = targetX - centerX;
                         const errorY = targetY - centerY;
                         
+                        // -- TACTICAL TARGET LOCK UI --
+                        // Draw a sci-fi bounding box directly onto the canvas over the camera feed
+                        ctx.strokeStyle = state.colorTrack ? '#00ffaa' : '#00f3ff';
+                        ctx.lineWidth = 2;
+                        
+                        // Draw corners
+                        const s = 15; // size of box
+                        const len = 5; // length of corner marks
+                        ctx.beginPath();
+                        // Top-left
+                        ctx.moveTo(targetX - s, targetY - s + len); ctx.lineTo(targetX - s, targetY - s); ctx.lineTo(targetX - s + len, targetY - s);
+                        // Top-right
+                        ctx.moveTo(targetX + s - len, targetY - s); ctx.lineTo(targetX + s, targetY - s); ctx.lineTo(targetX + s, targetY - s + len);
+                        // Bottom-left
+                        ctx.moveTo(targetX - s, targetY + s - len); ctx.lineTo(targetX - s, targetY + s); ctx.lineTo(targetX - s + len, targetY + s);
+                        // Bottom-right
+                        ctx.moveTo(targetX + s - len, targetY + s); ctx.lineTo(targetX + s, targetY + s); ctx.lineTo(targetX + s, targetY + s - len);
+                        ctx.stroke();
+
+                        // Draw cross center
+                        ctx.beginPath();
+                        ctx.moveTo(targetX - 3, targetY); ctx.lineTo(targetX + 3, targetY);
+                        ctx.moveTo(targetX, targetY - 3); ctx.lineTo(targetX, targetY + 3);
+                        ctx.stroke();
+                        
                         let pan = 0;
                         let tilt = 0;
 
@@ -548,6 +614,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         addXP(50);
                     }
                 }
+                } // End if (!isStunned)
 
             } catch (err) {
                 // Ignore cross-origin canvas errors if running locally without properly configured server
