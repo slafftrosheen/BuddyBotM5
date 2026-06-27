@@ -86,6 +86,7 @@ void setup() {
         esp_restart();
     }
 
+    WiFi.setHostname("buddycam");
     WiFi.mode(WIFI_STA);
     wifiMulti.addAP("STARLINK.TAK", password);
     wifiMulti.addAP("TAK", password);

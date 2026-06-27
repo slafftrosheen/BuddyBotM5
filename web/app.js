@@ -135,6 +135,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     showAlert('Connection Lost', '#ff3b3b');
                 }
             });
-    }, 2000);
+    }, 3000);
 
 });

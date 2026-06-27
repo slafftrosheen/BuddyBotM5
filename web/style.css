@@ -375,6 +375,24 @@ button {
     text-shadow: 0 1px 3px rgba(0,0,0,0.8);
     font-family: var(--font-heading);
 }
+.speed-control {
+    background: rgba(0,0,0,0.2);
+    padding: 12px;
+    border-radius: var(--radius-sm);
+    margin-bottom: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.speed-control label {
+    font-weight: 800;
+    color: var(--accent-blue);
+    font-size: 0.9rem;
+}
+.speed-control input[type="range"] {
+    width: 100%;
+    accent-color: var(--accent-pink);
+}
 .drive-buttons { display: flex; gap: 16px; margin-top: 16px; justify-content: center; }
 
 /* ── Grids (Sound, Game, Emotion, AI) ── */

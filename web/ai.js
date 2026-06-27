@@ -98,7 +98,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         console.log("YOLO Detections:", data);
                     })
                     .catch(()=>{});
-            }, 1000);
+            }, 2000);
         } else {
             clearInterval(yoloInterval);
         }

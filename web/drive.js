@@ -9,6 +9,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const throttleFill = document.getElementById('throttle-fill');
     const throttlePct = document.getElementById('throttle-pct');
     const readout = document.getElementById('drive-readout');
+    
+    const speedSlider = document.getElementById('speed-limit-slider');
+    const speedVal = document.getElementById('speed-limit-val');
+
+    speedSlider.addEventListener('input', (e) => {
+        speedVal.textContent = e.target.value;
+    });
 
     const manager = nipplejs.create({
         zone: joystickZone,
@@ -26,8 +33,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const forward = Math.sin(data.angle.radian) * data.distance;
         const right = Math.cos(data.angle.radian) * data.distance;
         
-        motorData.speed = Math.min(100, Math.max(-100, (forward / 75) * 100));
-        motorData.turn = Math.min(100, Math.max(-100, (right / 75) * 100));
+        const limitLevel = parseInt(speedSlider.value);
+        const limitMultiplier = limitLevel * 0.2; // Level 1=20%, 5=100%
+        
+        motorData.speed = Math.min(100, Math.max(-100, (forward / 75) * 100)) * limitMultiplier;
+        motorData.turn = Math.min(100, Math.max(-100, (right / 75) * 100)) * limitMultiplier;
         
         updateThrottleUI();
     });
@@ -66,12 +76,15 @@ document.addEventListener('DOMContentLoaded', () => {
         }).catch(()=>{});
     }
 
-    // Command loop (10Hz)
+    // Command loop (debounced/throttled)
+    let isSending = false;
     motorInterval = setInterval(() => {
-        if (Math.abs(motorData.speed) > 2 || Math.abs(motorData.turn) > 2) {
+        if (!isSending && (Math.abs(motorData.speed) > 2 || Math.abs(motorData.turn) > 2)) {
+            isSending = true;
             sendMotorCommand(motorData.speed, motorData.turn);
+            setTimeout(() => { isSending = false; }, 100); // Wait at least 100ms before next send
         }
-    }, 100);
+    }, 50);
 
     // ── Action Buttons ──
     const danceBtn = document.getElementById('btn-dance');

@@ -130,6 +130,7 @@ void initWiFi() {
     M5.Lcd.setTextSize(2);
     M5.Lcd.println("Connecting to WiFi...");
 
+    WiFi.setHostname("buddy");
     WiFi.mode(WIFI_STA);
     
     if (strlen(buddyConfig.wifi_ssid1) > 0) {
@@ -173,7 +174,7 @@ void initWiFi() {
 // ═══════════════════════════════════════
 void initServer() {
     // Serve Web UI from SD Card
-    server.serveStatic("/", SD, "/").setDefaultFile("index.html");
+    server.serveStatic("/", SD, "/").setDefaultFile("index.html").setCacheControl("max-age=0, no-cache, no-store, must-revalidate");
 
     // ── File Upload Handler ──
     server.on("/api/upload", HTTP_POST, [](AsyncWebServerRequest *request){
