@@ -7,26 +7,16 @@
 #include <ArduinoJson.h>
 #include <Wire.h>
 #include <ArduinoOTA.h>
+#include <WiFiMulti.h>
 
 #define sensor_t Adafruit_sensor_t
 #include <Adafruit_Sensor.h>
 #include "Adafruit_BME680.h"
 #undef sensor_t
 
-// ═══════════════════════════════════════
-// Persona State (8 emotions)
-// ═══════════════════════════════════════
-// 0: Neutral, 1: Happy, 2: Angry, 3: Sleepy
-// 4: Excited, 5: Sad, 6: Curious, 7: Alert
-int currentEmotion = 0;
-int lastEmotion = -1;
-unsigned long nextBlink = 0;
-bool isBlinking = false;
-
-// Persona customization
-uint16_t eyeColor = CYAN;
-int eyeSize = 30;
-int blinkRate = 3000;
+#include "config.h"
+#include "sounds.h"
+#include "persona.h"
 
 // IMU State
 float imu_pitch = 0.0;
@@ -38,15 +28,7 @@ unsigned long nextQuirkTime = 60000;
 unsigned long pettingStartTime = 0;
 bool isPetting = false;
 
-// Audio Recording (Parrot Mode)
-int16_t* audioBuffer = nullptr;
-size_t audioBufferSize = 16000 * 3; // 16kHz * 3 seconds = 48K samples (96KB)
-size_t recordedLength = 0;
-
-#include <WiFiMulti.h>
-
 WiFiMulti wifiMulti;
-const char* password = "Slaff181188";
 
 // Web Server
 AsyncWebServer server(80);
@@ -56,25 +38,17 @@ Adafruit_BME680 bme;
 
 // ═══════════════════════════════════════
 // RollerCAN I2C Protocol
-// Address: 0x64 (M1), 0x65 (M2)
-// Reg 0x00: Config — byte0=output(0/1), byte1=mode(1=speed)
-// Reg 0x40: Speed — 4 bytes, int32 LE, value = RPM * 100
 // ═══════════════════════════════════════
 const uint8_t ROLLER_M1_ADDR = 0x64;
 const uint8_t ROLLER_M2_ADDR = 0x65;
 
+#if BUDDY_TIER >= 1  // Pro+ only
 // ═══════════════════════════════════════
 // 8-Channel Servo Hat I2C Protocol
-// Address: 0x38
-// Reg 0x00-0x07: CH0-CH7 angle (0-180)
-// For continuous rotation: 90=stop, 0=full CW, 180=full CCW
 // ═══════════════════════════════════════
 const uint8_t SERVO_HAT_ADDR = 0x38;
+#endif
 
-// Config
-String cam_ip = "10.140.12.137";
-int motorTrimL = 0;
-int motorTrimR = 0;
 bool motorsInitialized = false;
 
 // ═══════════════════════════════════════
@@ -82,14 +56,13 @@ bool motorsInitialized = false;
 // ═══════════════════════════════════════
 void rollerSetConfig(uint8_t addr, uint8_t output, uint8_t mode) {
     Wire.beginTransmission(addr);
-    Wire.write(0x00);       // Config register
-    Wire.write(output);     // 0=off, 1=on
-    Wire.write(mode);       // 1=speed, 2=position, 3=current
+    Wire.write(0x00);
+    Wire.write(output);
+    Wire.write(mode);
     Wire.endTransmission();
 }
 
 void rollerSetSpeed(uint8_t addr, int32_t speedRPM100) {
-    // Speed register 0x40, 4 bytes Little-Endian (value = RPM * 100)
     Wire.beginTransmission(addr);
     Wire.write(0x40);
     Wire.write((uint8_t)(speedRPM100 & 0xFF));
@@ -100,100 +73,38 @@ void rollerSetSpeed(uint8_t addr, int32_t speedRPM100) {
 }
 
 void initMotors() {
-    // Enable both motors in Speed Mode
-    rollerSetConfig(ROLLER_M1_ADDR, 1, 1); // Output ON, Speed Mode
+    rollerSetConfig(ROLLER_M1_ADDR, 1, 1);
     delay(10);
     rollerSetConfig(ROLLER_M2_ADDR, 1, 1);
     delay(10);
-    // Start with speed = 0
     rollerSetSpeed(ROLLER_M1_ADDR, 0);
     rollerSetSpeed(ROLLER_M2_ADDR, 0);
     motorsInitialized = true;
 }
 
-// Set motor speeds from -100..+100 percentage
-// Maps to approximately -3000..+3000 RPM (* 100 for register)
+// Motor speed with inversion from config
 void setMotorSpeeds(int speedPctM1, int speedPctM2) {
-    // Map -100..100 to -300000..300000 (= -3000..3000 RPM * 100)
-    int32_t rpm100_m1 = (int32_t)speedPctM1 * 3000;
-    int32_t rpm100_m2 = (int32_t)speedPctM2 * 3000;
+    if (buddyConfig.motorInvertL) speedPctM1 = -speedPctM1;
+    if (buddyConfig.motorInvertR) speedPctM2 = -speedPctM2;
+    int32_t rpm100_m1 = (int32_t)speedPctM1 * buddyConfig.motorMaxRPM;
+    int32_t rpm100_m2 = (int32_t)speedPctM2 * buddyConfig.motorMaxRPM;
     rollerSetSpeed(ROLLER_M1_ADDR, rpm100_m1);
     rollerSetSpeed(ROLLER_M2_ADDR, rpm100_m2);
 }
 
+#if BUDDY_TIER >= 1  // Pro+ only
 // ═══════════════════════════════════════
 // 8-Servo Hat Control
 // ═══════════════════════════════════════
 void setServoAngle(uint8_t channel, uint8_t angle) {
-    // channel 0-7, angle 0-180
-    // For continuous rotation servos: 90=stop, <90=CW, >90=CCW
     if (channel > 7) return;
     if (angle > 180) angle = 180;
     Wire.beginTransmission(SERVO_HAT_ADDR);
-    Wire.write(channel);   // Register = channel number (0x00-0x07)
+    Wire.write(channel);
     Wire.write(angle);
     Wire.endTransmission();
 }
-
-// ═══════════════════════════════════════
-// Sound Effects via M5.Speaker
-// ═══════════════════════════════════════
-void playSound(const char* sound) {
-    if (strcmp(sound, "beep") == 0) {
-        M5.Speaker.tone(1000, 200);
-    } else if (strcmp(sound, "siren") == 0) {
-        for (int i = 0; i < 3; i++) {
-            M5.Speaker.tone(800, 150);
-            delay(200);
-            M5.Speaker.tone(1200, 150);
-            delay(200);
-        }
-    } else if (strcmp(sound, "laugh") == 0) {
-        int notes[] = {500, 600, 700, 600, 500, 700, 800};
-        for (int i = 0; i < 7; i++) {
-            M5.Speaker.tone(notes[i], 80);
-            delay(100);
-        }
-    } else if (strcmp(sound, "horn") == 0) {
-        M5.Speaker.tone(300, 500);
-    } else if (strcmp(sound, "r2d2") == 0) {
-        int freqs[] = {2000, 1500, 2500, 1800, 2200, 1000, 3000, 1200};
-        for (int i = 0; i < 8; i++) {
-            M5.Speaker.tone(freqs[i], 60);
-            delay(80);
-        }
-    } else if (strcmp(sound, "melody") == 0) {
-        int notes[] = {262, 294, 330, 349, 392, 440, 494, 523};
-        for (int i = 0; i < 8; i++) {
-            M5.Speaker.tone(notes[i], 150);
-            delay(180);
-        }
-    } else if (strcmp(sound, "purr") == 0) {
-        for (int i = 0; i < 5; i++) {
-            M5.Speaker.tone(150, 100);
-            delay(120);
-            M5.Speaker.tone(120, 100);
-            delay(120);
-        }
-    } else if (strcmp(sound, "sneeze") == 0) {
-        M5.Speaker.tone(2000, 50);
-        delay(100);
-        M5.Speaker.tone(3000, 150);
-    } else if (strcmp(sound, "whistle") == 0) {
-        M5.Speaker.tone(1500, 200);
-        delay(250);
-        M5.Speaker.tone(2000, 400);
-    } else if (strcmp(sound, "snore") == 0) {
-        M5.Speaker.tone(200, 800);
-        delay(900);
-        M5.Speaker.tone(400, 400);
-    } else if (strcmp(sound, "eat") == 0) {
-        for (int i = 0; i < 4; i++) {
-            M5.Speaker.tone(800 + (i*100), 50);
-            delay(60);
-        }
-    }
-}
+#endif
 
 // ═══════════════════════════════════════
 // Color helpers
@@ -207,120 +118,10 @@ uint16_t hexToColor565(const char* hex) {
     return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
 }
 
-// ═══════════════════════════════════════
-// Persona Rendering (8 emotions)
-// ═══════════════════════════════════════
-void updatePersona() {
-    if (currentEmotion != lastEmotion || millis() > nextBlink) {
-        M5.Lcd.fillScreen(BLACK);
 
-        int cx1 = 100, cx2 = 220, cy = 120;
-
-        if (isBlinking) {
-            M5.Lcd.fillRect(cx1 - eyeSize, cy, eyeSize * 2, 4, eyeColor);
-            M5.Lcd.fillRect(cx2 - eyeSize, cy, eyeSize * 2, 4, eyeColor);
-            isBlinking = false;
-            nextBlink = millis() + 150; // Eyes closed for 150ms
-        } else {
-            switch (currentEmotion) {
-                case 0: // Neutral
-                    M5.Lcd.fillCircle(cx1, cy, eyeSize, eyeColor);
-                    M5.Lcd.fillCircle(cx2, cy, eyeSize, eyeColor);
-                    break;
-                case 1: // Happy
-                    M5.Lcd.fillArc(cx1, cy + 10, eyeSize / 2, eyeSize, 180, 360, eyeColor);
-                    M5.Lcd.fillArc(cx2, cy + 10, eyeSize / 2, eyeSize, 180, 360, eyeColor);
-                    break;
-                case 2: // Angry
-                    M5.Lcd.fillCircle(cx1, cy, eyeSize, RED);
-                    M5.Lcd.fillCircle(cx2, cy, eyeSize, RED);
-                    M5.Lcd.fillTriangle(cx1 - 40, cy - 50, cx1 + 40, cy - 10, cx1 + 40, cy - 50, BLACK);
-                    M5.Lcd.fillTriangle(cx2 - 40, cy - 10, cx2 + 40, cy - 50, cx2 - 40, cy - 50, BLACK);
-                    break;
-                case 3: // Sleepy
-                    M5.Lcd.fillRect(cx1 - eyeSize, cy, eyeSize * 2, 6, eyeColor);
-                    M5.Lcd.fillRect(cx2 - eyeSize, cy, eyeSize * 2, 6, eyeColor);
-                    M5.Lcd.setTextSize(2);
-                    M5.Lcd.setTextColor(eyeColor);
-                    M5.Lcd.setCursor(260, 60);
-                    M5.Lcd.print("z");
-                    M5.Lcd.setCursor(275, 40);
-                    M5.Lcd.print("Z");
-                    break;
-                case 4: // Excited — ring eyes with sparkle
-                    M5.Lcd.fillCircle(cx1, cy, eyeSize + 8, eyeColor);
-                    M5.Lcd.fillCircle(cx2, cy, eyeSize + 8, eyeColor);
-                    M5.Lcd.fillCircle(cx1, cy, eyeSize - 5, BLACK);
-                    M5.Lcd.fillCircle(cx2, cy, eyeSize - 5, BLACK);
-                    M5.Lcd.fillCircle(cx1, cy, eyeSize / 3, eyeColor);
-                    M5.Lcd.fillCircle(cx2, cy, eyeSize / 3, eyeColor);
-                    M5.Lcd.fillCircle(cx1 + 10, cy - 12, 4, WHITE);
-                    M5.Lcd.fillCircle(cx2 + 10, cy - 12, 4, WHITE);
-                    break;
-                case 5: // Sad — droopy with tear
-                    M5.Lcd.fillCircle(cx1, cy, eyeSize, eyeColor);
-                    M5.Lcd.fillCircle(cx2, cy, eyeSize, eyeColor);
-                    M5.Lcd.fillTriangle(cx1 - 35, cy - 35, cx1 + 35, cy - 20, cx1 - 35, cy - 20, BLACK);
-                    M5.Lcd.fillTriangle(cx2 + 35, cy - 35, cx2 - 35, cy - 20, cx2 + 35, cy - 20, BLACK);
-                    M5.Lcd.fillCircle(cx1 + 20, cy + 35, 5, BLUE);
-                    break;
-                case 6: // Curious — asymmetric
-                    M5.Lcd.fillCircle(cx1, cy, eyeSize + 10, eyeColor);
-                    M5.Lcd.fillCircle(cx2, cy, eyeSize - 5, eyeColor);
-                    M5.Lcd.setTextSize(3);
-                    M5.Lcd.setTextColor(eyeColor);
-                    M5.Lcd.setCursor(145, 50);
-                    M5.Lcd.print("?");
-                    break;
-                case 7: // Alert — diamond eyes
-                    M5.Lcd.fillTriangle(cx1, cy - eyeSize, cx1 + eyeSize, cy, cx1, cy + eyeSize, RED);
-                    M5.Lcd.fillTriangle(cx1, cy - eyeSize, cx1 - eyeSize, cy, cx1, cy + eyeSize, RED);
-                    M5.Lcd.fillTriangle(cx2, cy - eyeSize, cx2 + eyeSize, cy, cx2, cy + eyeSize, RED);
-                    M5.Lcd.fillTriangle(cx2, cy - eyeSize, cx2 - eyeSize, cy, cx2, cy + eyeSize, RED);
-                    M5.Lcd.setTextSize(3);
-                    M5.Lcd.setTextColor(RED);
-                    M5.Lcd.setCursor(145, 50);
-                    M5.Lcd.print("!");
-                    break;
-                case 8: // Love — heart eyes (simple approximation)
-                    M5.Lcd.fillCircle(cx1 - 10, cy - 10, eyeSize/1.5, RED);
-                    M5.Lcd.fillCircle(cx1 + 10, cy - 10, eyeSize/1.5, RED);
-                    M5.Lcd.fillTriangle(cx1 - 25, cy, cx1 + 25, cy, cx1, cy + 30, RED);
-                    M5.Lcd.fillCircle(cx2 - 10, cy - 10, eyeSize/1.5, RED);
-                    M5.Lcd.fillCircle(cx2 + 10, cy - 10, eyeSize/1.5, RED);
-                    M5.Lcd.fillTriangle(cx2 - 25, cy, cx2 + 25, cy, cx2, cy + 30, RED);
-                    break;
-                case 9: // Shock — jagged eyes
-                    M5.Lcd.fillTriangle(cx1, cy - eyeSize, cx1 + eyeSize, cy + eyeSize/2, cx1 - eyeSize, cy + eyeSize/2, eyeColor);
-                    M5.Lcd.fillTriangle(cx2, cy - eyeSize, cx2 + eyeSize, cy + eyeSize/2, cx2 - eyeSize, cy + eyeSize/2, eyeColor);
-                    M5.Lcd.fillCircle(cx1, cy + eyeSize/4, eyeSize/3, BLACK);
-                    M5.Lcd.fillCircle(cx2, cy + eyeSize/4, eyeSize/3, BLACK);
-                    break;
-                case 10: // Dizzy — concentric circles
-                    for(int i=0; i<4; i++) {
-                        M5.Lcd.drawCircle(cx1, cy, eyeSize - i*6, eyeColor);
-                        M5.Lcd.drawCircle(cx2, cy, eyeSize - i*6, eyeColor);
-                    }
-                    M5.Lcd.fillCircle(cx1, cy, 4, RED);
-                    M5.Lcd.fillCircle(cx2, cy, 4, RED);
-                    break;
-                case 11: // Cool — sunglasses
-                    M5.Lcd.fillRect(cx1 - eyeSize, cy - eyeSize/2, eyeSize*2, eyeSize, BLACK);
-                    M5.Lcd.fillRect(cx2 - eyeSize, cy - eyeSize/2, eyeSize*2, eyeSize, BLACK);
-                    M5.Lcd.drawRect(cx1 - eyeSize, cy - eyeSize/2, eyeSize*2, eyeSize, eyeColor);
-                    M5.Lcd.drawRect(cx2 - eyeSize, cy - eyeSize/2, eyeSize*2, eyeSize, eyeColor);
-                    M5.Lcd.drawLine(cx1 + eyeSize, cy - eyeSize/2 + 5, cx2 - eyeSize, cy - eyeSize/2 + 5, eyeColor);
-                    break;
-            }
-            isBlinking = true;
-            nextBlink = millis() + random(blinkRate / 2, blinkRate); // Eyes open for random duration
-        }
-        lastEmotion = currentEmotion;
-    }
-}
 
 // ═══════════════════════════════════════
-// WiFi Init
+// WiFi Init (from config)
 // ═══════════════════════════════════════
 void initWiFi() {
     M5.Lcd.fillScreen(BLACK);
@@ -329,12 +130,34 @@ void initWiFi() {
     M5.Lcd.println("Connecting to WiFi...");
 
     WiFi.mode(WIFI_STA);
-    wifiMulti.addAP("STARLINK.TAK", password);
-    wifiMulti.addAP("TAK", password);
+    
+    if (strlen(buddyConfig.wifi_ssid1) > 0) {
+        wifiMulti.addAP(buddyConfig.wifi_ssid1, buddyConfig.wifi_pass1);
+        M5.Lcd.printf("  SSID1: %s\n", buddyConfig.wifi_ssid1);
+    }
+    if (strlen(buddyConfig.wifi_ssid2) > 0) {
+        wifiMulti.addAP(buddyConfig.wifi_ssid2, buddyConfig.wifi_pass2);
+        M5.Lcd.printf("  SSID2: %s\n", buddyConfig.wifi_ssid2);
+    }
+    if (strlen(buddyConfig.wifi_ssid3) > 0) {
+        wifiMulti.addAP(buddyConfig.wifi_ssid3, buddyConfig.wifi_pass3);
+        M5.Lcd.printf("  SSID3: %s\n", buddyConfig.wifi_ssid3);
+    }
 
+    int attempts = 0;
     while (wifiMulti.run() != WL_CONNECTED) {
         delay(500);
         M5.Lcd.print(".");
+        attempts++;
+        if (attempts > 30) {
+            // Captive portal fallback
+            M5.Lcd.println("\nNo WiFi! Starting AP...");
+            WiFi.mode(WIFI_AP);
+            WiFi.softAP("BuddyBot-Setup", "buddy123");
+            M5.Lcd.print("AP IP: ");
+            M5.Lcd.println(WiFi.softAPIP());
+            return;
+        }
     }
 
     M5.Lcd.println("\nConnected!");
@@ -349,7 +172,7 @@ void initServer() {
     // Serve Web UI from SD Card
     server.serveStatic("/", SD, "/").setDefaultFile("index.html");
 
-    // File Upload Handler (push web files to SD via WiFi)
+    // ── File Upload Handler ──
     server.on("/api/upload", HTTP_POST, [](AsyncWebServerRequest *request){
         if (request->_tempObject != NULL) {
             request->send(200, "text/plain", "Upload Complete");
@@ -385,15 +208,13 @@ void initServer() {
             doc["pres"] = bme.pressure / 100.0;
             doc["gas"] = bme.gas_resistance;
         } else {
-            doc["temp"] = 0;
-            doc["hum"] = 0;
-            doc["pres"] = 0;
-            doc["gas"] = 0;
+            doc["temp"] = 0; doc["hum"] = 0; doc["pres"] = 0; doc["gas"] = 0;
         }
         doc["pitch"] = imu_pitch;
         doc["roll"] = imu_roll;
         doc["heap"] = ESP.getFreeHeap();
         doc["rssi"] = WiFi.RSSI();
+        doc["buildTier"] = buddyConfig.buildTier;
         String response;
         serializeJson(doc, response);
         request->send(200, "application/json", response);
@@ -401,56 +222,40 @@ void initServer() {
 
     // ── GET /api/config ──
     server.on("/api/config", HTTP_GET, [](AsyncWebServerRequest *request){
-        JsonDocument doc;
-        doc["cam_ip"] = cam_ip;
-        doc["trimL"] = motorTrimL;
-        doc["trimR"] = motorTrimR;
-        String response;
-        serializeJson(doc, response);
-        request->send(200, "application/json", response);
+        request->send(200, "application/json", configToJson());
     });
 
     // ── POST /api/config ──
     server.on("/api/config", HTTP_POST, [](AsyncWebServerRequest *request){
     }, NULL, [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total){
-        JsonDocument doc;
-        if (!deserializeJson(doc, data, len)) {
-            if (doc.containsKey("trimL")) motorTrimL = doc["trimL"];
-            if (doc.containsKey("trimR")) motorTrimR = doc["trimR"];
-            request->send(200, "text/plain", "OK");
+        if (configApply((const char*)data, len)) {
+            request->send(200, "text/plain", "Config Saved");
         } else {
-            request->send(400, "text/plain", "Bad Request");
+            request->send(400, "text/plain", "Bad Config JSON");
         }
     });
 
     // ── POST /api/motors ──
-    // Receives speed (-100..100) and turn (-100..100)
-    // Applies differential mix and drives RollerCAN motors + CH0 steering servo
     server.on("/api/motors", HTTP_POST, [](AsyncWebServerRequest *request){
     }, NULL, [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total){
         JsonDocument doc;
-        DeserializationError error = deserializeJson(doc, data, len);
-        if (!error) {
-            int speed = doc["speed"]; // -100 to 100
-            int turn = doc["turn"];   // -100 to 100
+        if (!deserializeJson(doc, data, len)) {
+            int speed = doc["speed"];
+            int turn = doc["turn"];
+            int trimL = doc["trimL"] | buddyConfig.motorTrimL;
+            int trimR = doc["trimR"] | buddyConfig.motorTrimR;
 
-            // Apply trims
-            int trimL = doc["trimL"] | motorTrimL;
-            int trimR = doc["trimR"] | motorTrimR;
-
-            // Differential drive mix
             int m1 = speed + turn + trimL;
             int m2 = speed - turn + trimR;
             m1 = constrain(m1, -100, 100);
             m2 = constrain(m2, -100, 100);
 
-            // Drive RollerCAN motors with proper protocol
             setMotorSpeeds(m1, m2);
 
-            // CH0 steering servo — continuous rotation
-            // turn -100..+100 → pulse 0..180 (90 = stop)
+#if BUDDY_TIER >= 1
             int steer_pulse = map(turn, -100, 100, 0, 180);
             setServoAngle(0, steer_pulse);
+#endif
 
             request->send(200, "text/plain", "OK");
             lastActivityTime = millis();
@@ -459,16 +264,14 @@ void initServer() {
         }
     });
 
+#if BUDDY_TIER >= 1  // Pro+ only
     // ── POST /api/servo ──
-    // For individual servo control (continuous rotation)
-    // Receives channel (0-7) and angle (0-180, 90=stop)
     server.on("/api/servo", HTTP_POST, [](AsyncWebServerRequest *request){
     }, NULL, [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total){
         JsonDocument doc;
-        DeserializationError error = deserializeJson(doc, data, len);
-        if (!error) {
+        if (!deserializeJson(doc, data, len)) {
             int channel = doc["channel"];
-            int angle = doc["angle"]; // 0-180, 90=stop
+            int angle = doc["angle"];
             setServoAngle(channel, angle);
             request->send(200, "text/plain", "OK");
             lastActivityTime = millis();
@@ -476,25 +279,32 @@ void initServer() {
             request->send(400, "text/plain", "Bad Request");
         }
     });
+#endif
 
     // ── POST /api/persona ──
-    // Accepts emotion (0-7), eyeColor (#hex), eyeSize, blinkRate
     server.on("/api/persona", HTTP_POST, [](AsyncWebServerRequest *request){
     }, NULL, [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total){
         JsonDocument doc;
         if (!deserializeJson(doc, data, len)) {
-            currentEmotion = doc["emotion"] | 0;
-            lastEmotion = -1; // force redraw
+            if (doc.containsKey("emotion")) {
+                persona.setEmotion((EmotionState)(doc["emotion"].as<int>()));
+            }
+            if (doc.containsKey("talking")) {
+                if (doc["talking"].as<bool>()) {
+                    persona.startTalking();
+                } else {
+                    persona.stopTalking();
+                }
+            }
 
             if (doc.containsKey("eyeColor")) {
-                const char* hex = doc["eyeColor"];
-                eyeColor = hexToColor565(hex);
+                strlcpy(buddyConfig.eyeColorHex, doc["eyeColor"], sizeof(buddyConfig.eyeColorHex));
             }
             if (doc.containsKey("eyeSize")) {
-                eyeSize = doc["eyeSize"] | 30;
+                buddyConfig.eyeSize = doc["eyeSize"] | 30;
             }
             if (doc.containsKey("blinkRate")) {
-                blinkRate = doc["blinkRate"] | 3000;
+                buddyConfig.blinkRate = doc["blinkRate"] | 3000;
             }
 
             request->send(200, "text/plain", "OK");
@@ -510,7 +320,7 @@ void initServer() {
         JsonDocument doc;
         if (!deserializeJson(doc, data, len)) {
             const char* sound = doc["sound"] | "beep";
-            playSound(sound);
+            playSoundAsync(sound);
             request->send(200, "text/plain", "OK");
             lastActivityTime = millis();
         } else {
@@ -518,63 +328,49 @@ void initServer() {
         }
     });
 
+    // ── GET /api/sounds ──
+    server.on("/api/sounds", HTTP_GET, [](AsyncWebServerRequest *request){
+        JsonDocument doc;
+        JsonArray arr = doc["sounds"].to<JsonArray>();
+        File dir = SD.open("/sounds");
+        if (dir) {
+            File entry;
+            while ((entry = dir.openNextFile())) {
+                String name = entry.name();
+                if (name.endsWith(".wav")) {
+                    name.replace(".wav", "");
+                    // Strip leading path if present
+                    int lastSlash = name.lastIndexOf('/');
+                    if (lastSlash >= 0) name = name.substring(lastSlash + 1);
+                    arr.add(name);
+                }
+                entry.close();
+            }
+            dir.close();
+        }
+        String response;
+        serializeJson(doc, response);
+        request->send(200, "application/json", response);
+    });
+
     // ── GET /api/action ──
     server.on("/api/action", HTTP_GET, [](AsyncWebServerRequest *request){
         if (request->hasParam("cmd")) {
             String cmd = request->getParam("cmd")->value();
             if (cmd == "treat") {
-                // Play eating sound, wiggle, happy face
-                playSound("eat");
+                playSoundAsync("eat");
                 setMotorSpeeds(50, -50);
                 delay(150);
                 setMotorSpeeds(-50, 50);
                 delay(150);
                 setMotorSpeeds(0, 0);
-                currentEmotion = 1; // Happy
-                lastEmotion = -1;
+                persona.setEmotion(EMO_HAPPY);
                 lastActivityTime = millis();
                 request->send(200, "text/plain", "Yummy");
                 return;
             }
         }
         request->send(400, "text/plain", "Invalid Action");
-    });
-
-    // ── POST /api/record ──
-    server.on("/api/record", HTTP_POST, [](AsyncWebServerRequest *request){
-        if (audioBuffer == nullptr) {
-            audioBuffer = (int16_t*)ps_malloc(audioBufferSize * sizeof(int16_t));
-        }
-        if (audioBuffer != nullptr) {
-            M5.Speaker.tone(2000, 100); // Beep to indicate start
-            delay(150);
-            M5.Mic.record(audioBuffer, audioBufferSize, 16000);
-            while (M5.Mic.isRecording()) {
-                delay(10);
-                M5.update();
-            }
-            recordedLength = audioBufferSize;
-            M5.Speaker.tone(1000, 100); // Beep to indicate end
-            request->send(200, "text/plain", "Recorded");
-        } else {
-            request->send(500, "text/plain", "Out of memory");
-        }
-    });
-
-    // ── POST /api/playback ──
-    server.on("/api/playback", HTTP_POST, [](AsyncWebServerRequest *request){
-        float pitchMult = 1.0;
-        if (request->hasParam("pitch")) {
-            pitchMult = request->getParam("pitch")->value().toFloat();
-            if (pitchMult < 0.5) pitchMult = 0.5;
-            if (pitchMult > 2.0) pitchMult = 2.0;
-        }
-        if (audioBuffer != nullptr && recordedLength > 0) {
-            M5.Speaker.playRaw(audioBuffer, recordedLength, 16000 * pitchMult);
-            request->send(200, "text/plain", "Playing");
-        } else {
-            request->send(400, "text/plain", "No audio recorded");
-        }
     });
 
     // ── POST /api/reboot ──
@@ -596,15 +392,13 @@ void initServer() {
 // ═══════════════════════════════════════
 void setup() {
     auto cfg = M5.config();
-    cfg.internal_mic = false; // Disable mic to prevent I2S crash on CoreS3
+    cfg.internal_mic = false;
     M5.begin(cfg);
     M5.Imu.begin();
     M5.Speaker.begin();
-    M5.Speaker.setVolume(128);
-    Wire.begin(2, 1); // CoreS3 PORT A I2C (SDA=2, SCL=1)
+    Wire.begin(2, 1);
 
-    initWiFi();
-
+    // Mount SD Card FIRST (needed for config)
     SPI.begin(36, 35, 37, 4);
     if (!SD.begin(4, SPI, 25000000)) {
         M5.Lcd.setTextColor(RED);
@@ -614,7 +408,21 @@ void setup() {
         M5.Lcd.setTextColor(GREEN);
         M5.Lcd.println("SD Card: MOUNTED OK");
         M5.Lcd.setTextColor(WHITE);
+        if (!SD.exists("/sprites")) SD.mkdir("/sprites");
+        if (!SD.exists("/sounds")) SD.mkdir("/sounds");
     }
+
+    // Load config from SD (or create defaults)
+    configLoad();
+
+    // Apply config values
+    M5.Speaker.setVolume(buddyConfig.speakerVolume);
+
+    // Initialize sound system
+    initSoundPlayer();
+
+    // Connect WiFi using config credentials
+    initWiFi();
 
     // Initialize BME680
     if (!bme.begin(0x76)) {
@@ -632,22 +440,23 @@ void setup() {
     initMotors();
     M5.Lcd.println("Motors: INIT");
 
+#if BUDDY_TIER >= 1
     // Initialize all servos to stop (90)
     for (int i = 0; i < 8; i++) {
         setServoAngle(i, 90);
     }
     M5.Lcd.println("Servos: STOP");
+#endif
+
+    M5.Lcd.printf("Build Tier: %s\n", 
+        buddyConfig.buildTier == 0 ? "LITE" : 
+        buddyConfig.buildTier == 1 ? "PRO" : "MAX");
 
     initServer();
 
-    // Startup chime
-    M5.Speaker.tone(1000, 100);
-    delay(120);
-    M5.Speaker.tone(1500, 100);
-    delay(120);
-    M5.Speaker.tone(2000, 150);
-
-    delay(3000);
+    // Startup sound
+    playSoundAsync("startup");
+    persona.begin();
 }
 
 // ═══════════════════════════════════════
@@ -671,9 +480,8 @@ void loop() {
             pettingStartTime = millis();
             isPetting = true;
         } else if (millis() - pettingStartTime > 2000) {
-            playSound("purr");
-            currentEmotion = 1; // Happy
-            lastEmotion = -1;
+            playSoundAsync("purr");
+            persona.setEmotion(EMO_HAPPY);
             lastActivityTime = millis();
             isPetting = false;
         }
@@ -686,16 +494,15 @@ void loop() {
     if (millis() - lastActivityTime > nextQuirkTime) {
         int quirk = random(0, 3);
         if (quirk == 0) {
-            playSound("sneeze");
-            currentEmotion = 6; // Curious
+            playSoundAsync("sneeze");
+            persona.setEmotion(EMO_CURIOUS);
         } else if (quirk == 1) {
-            playSound("whistle");
-            currentEmotion = 1; // Happy
+            playSoundAsync("whistle");
+            persona.setEmotion(EMO_HAPPY);
         } else {
-            playSound("snore");
-            currentEmotion = 3; // Sleepy
+            playSoundAsync("snore");
+            persona.setEmotion(EMO_SLEEPY);
         }
-        lastEmotion = -1;
         lastActivityTime = millis();
         nextQuirkTime = random(20000, 45000);
     }
@@ -704,13 +511,14 @@ void loop() {
     if (M5.Touch.getCount() > 0) {
         auto t = M5.Touch.getDetail();
         if (t.wasClicked()) {
-            currentEmotion = (currentEmotion + 1) % 12;
-            lastEmotion = -1;
+            static int currentEmotionIdx = 0;
+            currentEmotionIdx = (currentEmotionIdx + 1) % 12;
+            persona.setEmotion((EmotionState)currentEmotionIdx);
         }
     }
 
     // Persona rendering
-    updatePersona();
+    persona.update();
 
     delay(10);
 }

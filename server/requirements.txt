@@ -1,4 +1,11 @@
 fastapi
 uvicorn
+python-dotenv
 requests
+google-generativeai
+numpy
+opencv-python-headless
+pyaudio
+pydub
+speechrecognition
 gTTS

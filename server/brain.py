@@ -1,107 +1,139 @@
 import os
-import subprocess
+import io
+import time
 import requests
-import json
-import base64
-from fastapi import FastAPI, Request, Response
+from dotenv import load_dotenv
+from fastapi import FastAPI, UploadFile, File, Request, Response
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+import google.generativeai as genai
 from gtts import gTTS
-import uvicorn
 
-# ==========================================
-# CONFIGURATION
-# ==========================================
-GEMINI_API_KEY = "AIzaSyC2rJzys_Ab-7eXvGrqhUkoVDbRrEF9CYY"
+# Load config
+load_dotenv('config.env')
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+ROBOT_IP = os.getenv("ROBOT_IP", "10.140.12.80")
+CAM_IP = os.getenv("CAM_IP", "10.140.12.137")
 
-app = FastAPI()
+if GEMINI_API_KEY and GEMINI_API_KEY != "YOUR_GEMINI_API_KEY":
+    genai.configure(api_key=GEMINI_API_KEY)
 
-def call_gemini(audio_path: str) -> str:
-    # Read the audio file
-    with open(audio_path, "rb") as f:
-        audio_data = f.read()
-        
-    audio_base64 = base64.b64encode(audio_data).decode("utf-8")
-    
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
-    
-    headers = {"Content-Type": "application/json"}
-    
-    payload = {
-        "contents": [
-            {
-                "parts": [
-                    {
-                        "text": "You are BuddyBot, a cute and helpful desktop companion robot. Keep your response extremely short (1-2 sentences). Respond to the user's audio."
-                    },
-                    {
-                        "inline_data": {
-                            "mime_type": "audio/wav",
-                            "data": audio_base64
-                        }
-                    }
-                ]
-            }
-        ]
-    }
-    
-    print("Calling Gemini API...")
-    response = requests.post(url, headers=headers, json=payload)
-    if response.status_code == 200:
-        data = response.json()
-        try:
-            text = data["candidates"][0]["content"]["parts"][0]["text"]
-            return text.strip()
-        except KeyError:
-            return "I couldn't understand that."
-    else:
-        print(f"Gemini API Error: {response.text}")
-        return "I'm having trouble thinking right now."
+app = FastAPI(title="BuddyBot Brain")
 
-def text_to_pcm(text: str) -> bytes:
-    print(f"Generating TTS for: {text}")
-    # Use Google TTS
-    tts = gTTS(text=text, lang="en", tld="com")
-    mp3_path = "temp.mp3"
-    pcm_path = "temp.pcm"
-    tts.save(mp3_path)
+# CORS setup for Web UI on CoreS3
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+class ChatRequest(BaseModel):
+    text: str
+
+def trigger_bot_emotion(emotion_id):
+    try:
+        requests.post(f"http://{ROBOT_IP}/api/persona", json={"emotion": emotion_id}, timeout=1)
+    except:
+        pass
+
+def trigger_bot_talking(is_talking):
+    try:
+        requests.post(f"http://{ROBOT_IP}/api/persona", json={"talking": is_talking}, timeout=1)
+    except:
+        pass
+
+@app.get("/api/health")
+def health_check():
+    return {"status": "ok", "service": "BuddyBot Brain", "ai_ready": bool(GEMINI_API_KEY)}
+
+@app.post("/api/tts")
+def text_to_speech(req: ChatRequest):
+    """Generate audio and play it locally on the Pi Zero's speaker."""
+    if not req.text:
+        return {"error": "No text provided"}
     
-    # Convert MP3 to 24kHz 16-bit Mono PCM (which the ESP32 expects)
-    if os.path.exists(pcm_path):
-        os.remove(pcm_path)
-        
-    subprocess.run([
-        "ffmpeg", "-i", mp3_path, 
-        "-f", "s16le",       # Signed 16-bit little-endian
-        "-ac", "1",          # 1 channel (mono)
-        "-ar", "24000",      # 24kHz sample rate
-        pcm_path
-    ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    # We could send the audio back to ESP32, but for Max tier, Pi Zero plays it directly!
+    tts = gTTS(text=req.text, lang='en', slow=False)
+    tts.save("temp.mp3")
     
-    with open(pcm_path, "rb") as f:
-        pcm_data = f.read()
-        
-    return pcm_data
+    # Trigger talking animation on bot
+    trigger_bot_talking(True)
+    
+    # Play locally (requires mpg123 or similar on the Pi)
+    os.system("mpg123 temp.mp3")
+    
+    # Stop talking animation
+    trigger_bot_talking(False)
+    
+    return {"status": "played"}
 
 @app.post("/api/voice")
-async def handle_voice(request: Request):
-    # Receive the raw WAV audio from the ESP32
-    audio_data = await request.body()
-    print(f"Received {len(audio_data)} bytes of audio.")
-    
-    # Save the received audio
-    wav_path = "received.wav"
-    with open(wav_path, "wb") as f:
-        f.write(audio_data)
+async def process_voice(file: UploadFile = File(...)):
+    """Receives a WAV file, converts to text, chats with Gemini, and plays audio."""
+    if not GEMINI_API_KEY or GEMINI_API_KEY == "YOUR_GEMINI_API_KEY":
+        return {"error": "AI not configured"}
         
-    # Get text response from Gemini
-    response_text = call_gemini(wav_path)
-    print(f"BuddyBot says: {response_text}")
+    trigger_bot_emotion(6) # Curious (listening/thinking)
     
-    # Generate PCM audio
-    pcm_audio = text_to_pcm(response_text)
+    import speech_recognition as sr
+    recognizer = sr.Recognizer()
     
-    # Send PCM directly back to ESP32
-    return Response(content=pcm_audio, media_type="audio/pcm")
+    audio_bytes = await file.read()
+    audio_file = io.BytesIO(audio_bytes)
+    
+    try:
+        with sr.AudioFile(audio_file) as source:
+            audio_data = recognizer.record(source)
+        text = recognizer.recognize_google(audio_data)
+    except Exception as e:
+        trigger_bot_emotion(5) # Sad
+        return {"error": f"Could not understand audio: {str(e)}"}
+        
+    # Reuse chat logic which handles TTS
+    return chat_with_gemini(ChatRequest(text=text))
+
+@app.post("/api/chat")
+def chat_with_gemini(req: ChatRequest):
+    if not GEMINI_API_KEY or GEMINI_API_KEY == "YOUR_GEMINI_API_KEY":
+        return {"response": "My AI brain is not configured yet!"}
+        
+    trigger_bot_emotion(6) # Curious (thinking)
+    
+    try:
+        model = genai.GenerativeModel('gemini-pro')
+        response = model.generate_content(
+            f"You are BuddyBot, a friendly robot companion for kids. Keep answers short, fun, and use emojis. The child says: {req.text}"
+        )
+        reply = response.text
+        
+        trigger_bot_emotion(1) # Happy
+        
+        # Optionally trigger TTS here automatically
+        # text_to_speech(ChatRequest(text=reply))
+        
+        return {"response": reply}
+    except Exception as e:
+        trigger_bot_emotion(5) # Sad (error)
+        return {"error": str(e)}
+
+@app.post("/api/detect")
+def yolo_detect():
+    """
+    Mock endpoint for YOLO detection.
+    In a real scenario, this grabs a frame from CAM_IP, runs a tflite/onnx YOLO model,
+    and returns bounding boxes.
+    """
+    return {
+        "detections": [
+            {"class": "person", "confidence": 0.95, "box": [10, 10, 100, 200]},
+            {"class": "dog", "confidence": 0.88, "box": [150, 100, 300, 240]}
+        ]
+    }
 
 if __name__ == "__main__":
-    print("BuddyBot Brain running on port 8000")
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    import uvicorn
+    port = int(os.getenv("PORT", 8000))
+    host = os.getenv("HOST", "0.0.0.0")
+    uvicorn.run(app, host=host, port=port)
