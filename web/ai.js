@@ -91,8 +91,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (active) {
             // Periodically ping Pi Zero for bounding boxes
             yoloInterval = setInterval(() => {
-                const piHost = window.state?.config?.piHostname || 'buddybrain';
-                fetch(`http://${piHost}:8000/api/detect`, { method: 'POST' })
+                fetch(`http://buddybrain.local:8000/api/detect`, { method: 'POST' })
                     .then(res => res.json())
                     .then(data => {
                         // In future, draw bounding boxes on canvas overlay

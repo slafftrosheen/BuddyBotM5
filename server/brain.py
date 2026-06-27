@@ -12,8 +12,7 @@ from gtts import gTTS
 # Load config
 load_dotenv('config.env')
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-ROBOT_IP = os.getenv("ROBOT_IP", "10.140.12.80")
-CAM_IP = os.getenv("CAM_IP", "10.140.12.137")
+ROBOT_IP = os.getenv("ROBOT_IP", "buddy.local")
 
 if GEMINI_API_KEY and GEMINI_API_KEY != "YOUR_GEMINI_API_KEY":
     genai.configure(api_key=GEMINI_API_KEY)
@@ -122,7 +121,7 @@ def chat_with_gemini(req: ChatRequest):
 def yolo_detect():
     """
     Mock endpoint for YOLO detection.
-    In a real scenario, this grabs a frame from CAM_IP, runs a tflite/onnx YOLO model,
+    In a real scenario, this grabs a frame from buddycam.local, runs a tflite/onnx YOLO model,
     and returns bounding boxes.
     """
     return {

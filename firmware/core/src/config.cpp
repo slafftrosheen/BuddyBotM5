@@ -15,8 +15,6 @@ void configSetDefaults() {
     strlcpy(buddyConfig.wifi_pass2, "Slaff181188", sizeof(buddyConfig.wifi_pass2));
     memset(buddyConfig.wifi_ssid3, 0, sizeof(buddyConfig.wifi_ssid3));
     memset(buddyConfig.wifi_pass3, 0, sizeof(buddyConfig.wifi_pass3));
-    strlcpy(buddyConfig.cam_ip, "10.140.12.137", sizeof(buddyConfig.cam_ip));
-    strlcpy(buddyConfig.pi_hostname, "buddybrain", sizeof(buddyConfig.pi_hostname));
 
     // Motors
     buddyConfig.motorTrimL = 0;
@@ -81,8 +79,6 @@ void configLoad() {
     if (doc.containsKey("wifi_pass2")) strlcpy(buddyConfig.wifi_pass2, doc["wifi_pass2"], sizeof(buddyConfig.wifi_pass2));
     if (doc.containsKey("wifi_ssid3")) strlcpy(buddyConfig.wifi_ssid3, doc["wifi_ssid3"], sizeof(buddyConfig.wifi_ssid3));
     if (doc.containsKey("wifi_pass3")) strlcpy(buddyConfig.wifi_pass3, doc["wifi_pass3"], sizeof(buddyConfig.wifi_pass3));
-    if (doc.containsKey("cam_ip")) strlcpy(buddyConfig.cam_ip, doc["cam_ip"], sizeof(buddyConfig.cam_ip));
-    if (doc.containsKey("pi_hostname")) strlcpy(buddyConfig.pi_hostname, doc["pi_hostname"], sizeof(buddyConfig.pi_hostname));
 
     // Motors
     if (doc.containsKey("motorTrimL")) buddyConfig.motorTrimL = doc["motorTrimL"];
@@ -142,8 +138,6 @@ void configSave() {
     doc["wifi_pass2"] = buddyConfig.wifi_pass2;
     doc["wifi_ssid3"] = buddyConfig.wifi_ssid3;
     doc["wifi_pass3"] = buddyConfig.wifi_pass3;
-    doc["cam_ip"] = buddyConfig.cam_ip;
-    doc["pi_hostname"] = buddyConfig.pi_hostname;
 
     // Motors
     doc["motorTrimL"] = buddyConfig.motorTrimL;
@@ -189,8 +183,6 @@ String configToJson() {
     doc["wifi_ssid2"] = buddyConfig.wifi_ssid2;
     doc["wifi_ssid3"] = buddyConfig.wifi_ssid3;
     // NOTE: passwords are NOT sent to the UI for security
-    doc["cam_ip"] = buddyConfig.cam_ip;
-    doc["pi_hostname"] = buddyConfig.pi_hostname;
 
     doc["motorTrimL"] = buddyConfig.motorTrimL;
     doc["motorTrimR"] = buddyConfig.motorTrimR;
@@ -244,8 +236,6 @@ bool configApply(const char* json, size_t len) {
     if (doc.containsKey("wifi_pass2")) strlcpy(buddyConfig.wifi_pass2, doc["wifi_pass2"], sizeof(buddyConfig.wifi_pass2));
     if (doc.containsKey("wifi_ssid3")) strlcpy(buddyConfig.wifi_ssid3, doc["wifi_ssid3"], sizeof(buddyConfig.wifi_ssid3));
     if (doc.containsKey("wifi_pass3")) strlcpy(buddyConfig.wifi_pass3, doc["wifi_pass3"], sizeof(buddyConfig.wifi_pass3));
-    if (doc.containsKey("cam_ip")) strlcpy(buddyConfig.cam_ip, doc["cam_ip"], sizeof(buddyConfig.cam_ip));
-    if (doc.containsKey("pi_hostname")) strlcpy(buddyConfig.pi_hostname, doc["pi_hostname"], sizeof(buddyConfig.pi_hostname));
 
     // Motors
     if (doc.containsKey("motorTrimL")) buddyConfig.motorTrimL = doc["motorTrimL"];

@@ -99,9 +99,7 @@ void setup() {
 
     server.begin();
 
-    Serial.print("Camera Ready! Use 'http://");
-    Serial.print(WiFi.localIP());
-    Serial.println("/stream");
+    Serial.println("Camera Ready! Use 'http://buddycam.local/stream'");
 
     if (!MDNS.begin("buddycam")) {
         Serial.println("Error setting up MDNS responder!");

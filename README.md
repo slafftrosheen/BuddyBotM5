@@ -11,14 +11,14 @@ BuddyBot utilizes a distributed 3-tier architecture connected over WiFi:
 
 ### Network Topology (Portability)
 To make BuddyBot completely portable away from home, the entire robot (CoreS3, ATOM CAM, and Pi Zero 2W) is programmed to connect to your phone's mobile hotspot (`STARLINK.TAK` or `TAK`). 
-Because your phone assigns a random IP address to the Pi Zero every time, the ATOM CAM uses **mDNS** to dynamically find the Pi Zero on the network by looking for `buddybrain.local`.
+Because your phone assigns a random IP address to the components every time, the entire system uses **mDNS** to dynamically communicate. The UI works out of the box using `buddy.local`, `buddycam.local`, and `buddybrain.local`.
 
-## Tactical Web UI
+## Gamified Web UI
 
-The entire robot is controlled via a responsive, military-style Tactical HUD hosted directly on the CoreS3's SD card. Access it by navigating to the CoreS3's IP address (default `http://10.140.12.80`) in any modern browser.
+The entire robot is controlled via a responsive, Gamified Web UI hosted directly on the CoreS3's SD card. Access it by navigating to `http://buddy.local` in any modern browser. Note: Ensure your device supports mDNS resolution (most modern OSes do automatically).
 
 ### Features
-* **Live Camera Feed**: Streaming from the ATOM CAM with an animated crosshair and tactical overlays.
+* **Live Camera Feed**: Streaming from the ATOM CAM directly within the interface (Pro and Max tiers only).
 * **Drive System**: A responsive on-screen joystick that translates 360-degree input into differential drive logic.
 * **Steering Servo Linkage**: The X-axis of the joystick automatically maps to Servo Channel 0 to steer the wheels while driving.
 * **Telemetry Array**: Live readouts of temperature, humidity, atmospheric pressure, gas resistance (BME680), and IMU pitch/roll.
@@ -43,14 +43,14 @@ Both the CoreS3 and the ATOM CAM support Over-The-Air (OTA) updates.
 ### Deploying the Web UI
 Whenever you make changes to the HTML/CSS/JS files in the `web/` directory, push them to the CoreS3's SD card using the provided Python script:
 ```bash
-python deploy_web.py <CORES3_IP>
+python deploy_web.py buddy.local
 ```
 
 ### Flashing Firmware
-Use PlatformIO to build and flash the firmware. For OTA updates, add `--upload-port <IP_ADDRESS>` to your build command.
+Use PlatformIO to build and flash the firmware. For OTA updates, the system uses mDNS.
 ```bash
-pio run -t upload --upload-port 10.140.12.80   # CoreS3
-pio run -t upload --upload-port 10.140.12.137  # ATOM CAM
+pio run -t upload --upload-port buddy.local      # CoreS3
+pio run -t upload --upload-port buddycam.local   # ATOM CAM
 ```
 
 ## Setup: Pi Zero 2W (The Brain)

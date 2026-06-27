@@ -40,10 +40,10 @@ document.addEventListener('DOMContentLoaded', () => {
             applyTierVisibility();
             populateSettings();
             
-            // Start Cam Stream if IP is set
-            if (data.cam_ip) {
+            // Start Cam Stream if Tier >= 1 (Pro or Max)
+            if (data.buildTier >= 1) {
                 const img = document.getElementById('cam-stream');
-                img.src = `http://${data.cam_ip}/stream`;
+                img.src = `http://buddycam.local:81/stream`;
                 if (data.camFlip) img.style.transform += ' scaleY(-1)';
                 if (data.camMirror) img.style.transform += ' scaleX(-1)';
                 document.getElementById('cam-status').textContent = 'LIVE';

@@ -352,11 +352,12 @@
  C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/libraries/Update/src/Update.h \
  C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/cores/esp32/MD5Builder.h \
  C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/tools/sdk/esp32s3/include/esp_rom/include/esp_rom_md5.h \
+ C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/libraries/WiFi/src/WiFiMulti.h \
+ C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/libraries/WiFi/src/WiFi.h \
  .pio/libdeps/m5stack-cores3/Adafruit\ Unified\ Sensor/Adafruit_Sensor.h \
  .pio/libdeps/m5stack-cores3/Adafruit\ BME680\ Library/Adafruit_BME680.h \
  .pio/libdeps/m5stack-cores3/Adafruit\ BusIO/Adafruit_I2CDevice.h \
  .pio/libdeps/m5stack-cores3/Adafruit\ BusIO/Adafruit_SPIDevice.h \
  .pio/libdeps/m5stack-cores3/Adafruit\ BME680\ Library/bme68x.h \
  .pio/libdeps/m5stack-cores3/Adafruit\ BME680\ Library/bme68x_defs.h \
- C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/libraries/WiFi/src/WiFiMulti.h \
- C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/libraries/WiFi/src/WiFi.h
+ src/config.h src/sounds.h src/persona.h

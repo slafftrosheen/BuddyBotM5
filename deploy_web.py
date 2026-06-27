@@ -7,10 +7,9 @@ import time
 # Deploys all files from web/, sprites/, and sounds/ to the CoreS3 SD card via HTTP upload
 
 if len(sys.argv) < 2:
-    print("Usage: python deploy_web.py <CORES3_IP>")
-    sys.exit(1)
-
-IP = sys.argv[1]
+    IP = "buddy.local"
+else:
+    IP = sys.argv[1]
 
 DIRS_TO_UPLOAD = {
     "web": "",

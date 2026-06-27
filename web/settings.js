@@ -10,8 +10,6 @@ window.populateSettings = function() {
     
     // Network
     document.getElementById('cfg-ssid1').value = cfg.wifi_ssid1 || '';
-    document.getElementById('cfg-cam-ip').value = cfg.cam_ip || '';
-    document.getElementById('cfg-pi-host').value = cfg.pi_hostname || '';
     
     // API Keys
     document.getElementById('cfg-gemini-key').value = cfg.geminiApiKey || '';
@@ -77,8 +75,6 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btn-save-config')?.addEventListener('click', () => {
         const payload = {
             wifi_ssid1: document.getElementById('cfg-ssid1').value,
-            cam_ip: document.getElementById('cfg-cam-ip').value,
-            pi_hostname: document.getElementById('cfg-pi-host').value,
             
             motorTrimL: parseInt(document.getElementById('trim-left').value),
             motorTrimR: parseInt(document.getElementById('trim-right').value),

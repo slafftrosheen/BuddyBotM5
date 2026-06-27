@@ -8,6 +8,7 @@
 #include <Wire.h>
 #include <ArduinoOTA.h>
 #include <WiFiMulti.h>
+#include <ESPmDNS.h>
 
 #define sensor_t Adafruit_sensor_t
 #include <Adafruit_Sensor.h>
@@ -161,8 +162,10 @@ void initWiFi() {
     }
 
     M5.Lcd.println("\nConnected!");
-    M5.Lcd.print("IP: ");
-    M5.Lcd.println(WiFi.localIP());
+    
+    if (MDNS.begin("buddy")) {
+        M5.Lcd.println("MDNS: buddy.local");
+    }
 }
 
 // ═══════════════════════════════════════

@@ -25,8 +25,6 @@ struct BuddyConfig {
     char wifi_pass2[64];
     char wifi_ssid3[32];
     char wifi_pass3[64];
-    char cam_ip[20];
-    char pi_hostname[32];
     
     // ── Motors ──
     int motorTrimL;
