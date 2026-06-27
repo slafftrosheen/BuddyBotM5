@@ -6,7 +6,10 @@
 #include <ArduinoOTA.h>
 #include "VoiceAssistant.h"
 WiFiMulti wifiMulti;
-const char* password = "Slaff181188";
+// WiFi credentials — change these for your network
+#ifndef WIFI_PASS
+#define WIFI_PASS "changeme"
+#endif
 
 // ATOM S3R CAM Pin Definition
 #define PWDN_GPIO_NUM     -1
@@ -88,12 +91,18 @@ void setup() {
 
     WiFi.setHostname("buddycam");
     WiFi.mode(WIFI_STA);
-    wifiMulti.addAP("STARLINK.TAK", password);
-    wifiMulti.addAP("TAK", password);
+    wifiMulti.addAP("STARLINK.TAK", WIFI_PASS);
+    wifiMulti.addAP("TAK", WIFI_PASS);
     
+    int wifiAttempts = 0;
     while (wifiMulti.run() != WL_CONNECTED) {
         delay(500);
         Serial.print(".");
+        wifiAttempts++;
+        if (wifiAttempts > 40) {
+            Serial.println("\nWiFi connection failed! Restarting...");
+            esp_restart();
+        }
     }
     Serial.println("");
     Serial.println("WiFi connected");
@@ -135,6 +144,16 @@ void loop() {
             client.stop();
         }
     }
+
+    // WiFi auto-reconnect
+    static unsigned long lastWiFiCheck = 0;
+    if (millis() - lastWiFiCheck > 15000) {
+        lastWiFiCheck = millis();
+        if (WiFi.status() != WL_CONNECTED) {
+            Serial.println("[WiFi] Reconnecting...");
+            wifiMulti.run();
+        }
+    }
 }
 
 // used to image stream
@@ -153,6 +172,7 @@ static void jpegStream(WiFiClient* client) {
     
     for (;;) {
         ArduinoOTA.handle(); // keep OTA alive during stream
+        handleVoiceAssistant(); // keep voice assistant active during stream
         
         fb = esp_camera_fb_get();
         if (fb) {

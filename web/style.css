@@ -182,7 +182,7 @@ h1, h2, h3, .card-header, .bot-name, .tab-label, .big-btn {
 
 /* ── Cards ── */
 .card {
-    background: var(--bg-card);
+    background: linear-gradient(135deg, var(--bg-card) 0%, rgba(16, 24, 48, 0.95) 100%);
     border-radius: var(--radius-md);
     padding: 16px;
     border: 2px solid rgba(255, 255, 255, 0.05);
@@ -244,6 +244,9 @@ button {
 .action-btn.active { background: var(--accent-green); color: var(--text-dark); }
 .action-btn.danger { background: rgba(255, 59, 59, 0.2); color: #ff3b3b; }
 
+/* Touch target min size */
+button { min-height: 44px; }
+
 /* ── Camera Frame ── */
 .cam-frame {
     width: 100%;
@@ -258,6 +261,69 @@ button {
     width: 100%;
     height: 100%;
     object-fit: contain;
+}
+.cam-frame img[src=""] {
+    opacity: 0;
+}
+.cam-frame::before {
+    content: '📷 Waiting for camera...';
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255,255,255,0.3);
+    font-size: 1rem;
+    font-weight: 700;
+    background: repeating-linear-gradient(
+        90deg,
+        rgba(255,255,255,0.02) 0px,
+        rgba(255,255,255,0.05) 20px,
+        rgba(255,255,255,0.02) 40px
+    );
+    animation: shimmer 2s infinite linear;
+}
+@keyframes shimmer {
+    0% { background-position: -200px 0; }
+    100% { background-position: 200px 0; }
+}
+
+/* ── Sensor Grid (Buddy Tab) ── */
+.sensor-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+.sensor-item {
+    background: rgba(0,0,0,0.3);
+    padding: 10px;
+    border-radius: var(--radius-sm);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.sensor-item > div:first-child {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.sensor-icon { font-size: 1.2rem; }
+.sensor-val { font-weight: 800; font-size: 0.9rem; font-family: var(--font-heading); }
+.sensor-bar-track {
+    width: 100%;
+    height: 6px;
+    background: rgba(255,255,255,0.1);
+    border-radius: var(--radius-pill);
+    overflow: hidden;
+}
+.sensor-bar {
+    height: 100%;
+    background: var(--accent-blue);
+    transition: width 0.5s ease;
+    border-radius: var(--radius-pill);
+}
+.sensor-bar.imu {
+    background: var(--accent-purple);
 }
 
 /* ── Vitals Grid ── */

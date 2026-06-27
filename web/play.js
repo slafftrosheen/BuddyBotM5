@@ -40,13 +40,25 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // ── Parrot Recorder ──
-    // Sends a sound trigger to the Pi brain to record and parrot back
+    // ── Parrot Mode ──
+    // Plays a random sound through the robot's speaker (parrot-like)
     const btnParrot = document.getElementById('btn-parrot');
     if (btnParrot) {
+        const parrotSounds = ['r2d2', 'laugh', 'whistle', 'sneeze', 'horn'];
         btnParrot.addEventListener('click', () => {
-            // Future expansion: Pi Zero audio pipeline trigger
-            showAlert('Parrot Mode triggered on Pi Brain', 'var(--accent-blue)');
+            const pick = parrotSounds[Math.floor(Math.random() * parrotSounds.length)];
+            fetch('/api/sound', { 
+                method: 'POST', 
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sound: pick }) 
+            }).catch(()=>{});
+            fetch('/api/persona', { 
+                method: 'POST', 
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ emotion: 4 }) // Excited
+            }).catch(()=>{});
+            showAlert(`🦜 Squawk! (${pick})`, 'var(--accent-green)');
+            if (window.addXP) window.addXP(3);
         });
     }
 
@@ -63,6 +75,47 @@ document.addEventListener('DOMContentLoaded', () => {
             if (window.addXP) window.addXP(5);
         });
     }
+
+    // ── Color Quiz Game ──
+    const colorQuizColors = [
+        { name: 'Red', hex: '#ff3b3b' },
+        { name: 'Blue', hex: '#0f9bff' },
+        { name: 'Green', hex: '#00e676' },
+        { name: 'Yellow', hex: '#ffd600' },
+        { name: 'Pink', hex: '#ff6b9d' },
+        { name: 'Purple', hex: '#b388ff' }
+    ];
+    let colorQuizAnswer = null;
+    
+    document.getElementById('btn-color-game')?.addEventListener('click', () => {
+        const pick = colorQuizColors[Math.floor(Math.random() * colorQuizColors.length)];
+        colorQuizAnswer = pick.name;
+        
+        // Change robot's eye color to the quiz color
+        fetch('/api/persona', { 
+            method: 'POST', 
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ eyeColor: pick.hex, emotion: 6 }) // Curious
+        }).catch(()=>{});
+        
+        // Show prompt — after 3 seconds reveal the answer
+        showAlert('🎨 What color are my eyes?', pick.hex);
+        
+        setTimeout(() => {
+            showAlert(`It was ${pick.name}!`, pick.hex);
+            fetch('/api/persona', { 
+                method: 'POST', 
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ emotion: 1 }) // Happy
+            }).catch(()=>{});
+            fetch('/api/sound', { 
+                method: 'POST', 
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sound: 'levelup' }) 
+            }).catch(()=>{});
+            if (window.addXP) window.addXP(5);
+        }, 4000);
+    });
 
     // ── DJ Pad Overlay ──
     const djPad = document.getElementById('dj-pad');

@@ -11,8 +11,7 @@ const state = {
         motorTrimR: 0,
         servoInvert: [],
         camFlip: false,
-        camMirror: false,
-        piHostname: 'buddybrain'
+        camMirror: false
     }
 };
 
@@ -43,7 +42,12 @@ document.addEventListener('DOMContentLoaded', () => {
             // Start Cam Stream if Tier >= 1 (Pro or Max)
             if (data.buildTier >= 1) {
                 const img = document.getElementById('cam-stream');
-                img.src = `http://buddycam.local:81/stream`;
+                img.src = `http://buddycam.local/stream`;
+                img.onerror = () => {
+                    document.getElementById('cam-status').textContent = 'OFFLINE';
+                    document.getElementById('cam-status').style.background = '#ff3b3b';
+                    document.getElementById('cam-status').style.color = '#fff';
+                };
                 if (data.camFlip) img.style.transform += ' scaleY(-1)';
                 if (data.camMirror) img.style.transform += ' scaleX(-1)';
                 document.getElementById('cam-status').textContent = 'LIVE';
@@ -126,6 +130,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Update Footer
                 document.getElementById('heap-info').textContent = `Mem: ${(data.heap / 1024).toFixed(0)}KB`;
                 document.getElementById('wifi-rssi').textContent = `Signal: ${data.rssi}dBm`;
+                
+                // Uptime
+                const uptimeEl = document.getElementById('uptime-info');
+                if (uptimeEl && data.uptime) {
+                    const m = Math.floor(data.uptime / 60);
+                    const s = data.uptime % 60;
+                    uptimeEl.textContent = `Up: ${m}m${s}s`;
+                }
             })
             .catch(() => {
                 if (state.connected) {

@@ -2,10 +2,24 @@
 
 Pet-alike bot built using Lego Technic parts and M5Stack electronics.
 
+## Quick Start
+1. **Generate Assets**: Run `python generate_media.py` on your PC to generate the sprites and sounds.
+2. **Copy to SD**: Copy the `sprites/`, `sounds/`, and `web/` folders to the root of a FAT32 formatted MicroSD card and insert it into the CoreS3.
+3. **Configure WiFi**: Create a `config.json` on the SD card (or let the bot boot and use the web settings) to set your WiFi credentials.
+4. **Flash**: Flash the firmware using PlatformIO.
+5. **Connect**: Go to `http://buddy.local` in your browser.
+
+## Bill of Materials (BOM)
+* **Compute**: M5Stack CoreS3 SE
+* **Sensors**: M5Stack ENV.III (BME680), IMU (built into CoreS3)
+* **Vision/Audio**: M5Stack ATOM S3R CAM, M5Stack EchoBase
+* **Actuation**: 2x I2C Motors (RollerCAN), 8-Channel Servo Array module
+* **Chassis**: Lego Technic compatible parts
+
 ## System Architecture
 
 BuddyBot utilizes a distributed 3-tier architecture connected over WiFi:
-1. **The Body (M5Stack CoreS3 SE)**: Handles motor control, servo control, web serving (Tactical UI), telemetry (BME680, IMU), and rendering the Persona Engine.
+1. **The Body (M5Stack CoreS3 SE)**: Handles motor control, servo control, web serving (Gamified UI), telemetry (BME680, IMU), and rendering the Persona Engine.
 2. **The Eye/Ear/Mouth (M5Stack ATOM S3R CAM + EchoBase)**: Streams live MJPEG video from a GC0308 sensor over the local network and handles raw audio recording and playback via I2S.
 3. **The Brain (Raspberry Pi Zero 2W)**: Runs a local Python server. Hosts the intelligence logic, routing audio from the ESP32 to the Gemini API (`gemini-1.5-flash`), generating responses using local Text-to-Speech (gTTS/Piper), and streaming PCM audio back to the robot.
 
@@ -22,7 +36,7 @@ The entire robot is controlled via a responsive, Gamified Web UI hosted directly
 * **Drive System**: A responsive on-screen joystick that translates 360-degree input into differential drive logic.
 * **Steering Servo Linkage**: The X-axis of the joystick automatically maps to Servo Channel 0 to steer the wheels while driving.
 * **Telemetry Array**: Live readouts of temperature, humidity, atmospheric pressure, gas resistance (BME680), and IMU pitch/roll.
-* **Persona Engine**: 8 dynamic emotion states rendered on the CoreS3 display (Neutral, Happy, Angry, Sleepy, Excited, Sad, Curious, Alert). You can customize eye color, size, and blink rate live.
+* **Persona Engine**: 12 dynamic emotion states rendered on the CoreS3 display (Neutral, Happy, Angry, Sleepy, Excited, Sad, Curious, Alert, Love, Shocked, Dizzy, Cool). You can customize eye color, size, and blink rate live.
 * **Servo Array Control**: 8 individual sliders for continuous rotation servos with inversion toggles to reverse rotation direction.
 * **Entertainment Modes**: Sound effects (siren, R2D2, etc.), Dance Mode (choreographed movement), and Auto-Wander.
 * **System Settings**: Save motor trim offsets, invert camera feeds, and reboot the system remotely.

@@ -218,6 +218,7 @@ void initServer() {
         doc["roll"] = imu_roll;
         doc["heap"] = ESP.getFreeHeap();
         doc["rssi"] = WiFi.RSSI();
+        doc["uptime"] = millis() / 1000;
         doc["buildTier"] = buddyConfig.buildTier;
         String response;
         serializeJson(doc, response);
@@ -362,13 +363,17 @@ void initServer() {
         if (request->hasParam("cmd")) {
             String cmd = request->getParam("cmd")->value();
             if (cmd == "treat") {
-                playSoundAsync("eat");
-                setMotorSpeeds(50, -50);
-                delay(150);
-                setMotorSpeeds(-50, 50);
-                delay(150);
-                setMotorSpeeds(0, 0);
-                persona.setEmotion(EMO_HAPPY);
+                // Non-blocking treat animation via FreeRTOS task
+                xTaskCreatePinnedToCore([](void* param) {
+                    playSoundAsync("eat");
+                    setMotorSpeeds(50, -50);
+                    vTaskDelay(pdMS_TO_TICKS(150));
+                    setMotorSpeeds(-50, 50);
+                    vTaskDelay(pdMS_TO_TICKS(150));
+                    setMotorSpeeds(0, 0);
+                    persona.setEmotion(EMO_HAPPY);
+                    vTaskDelete(NULL);
+                }, "treat", 4096, NULL, 1, NULL, 0);
                 lastActivityTime = millis();
                 request->send(200, "text/plain", "Yummy");
                 return;
@@ -524,5 +529,16 @@ void loop() {
     // Persona rendering
     persona.update();
 
+    // WiFi auto-reconnect
+    static unsigned long lastWiFiCheck = 0;
+    if (millis() - lastWiFiCheck > 10000) {
+        lastWiFiCheck = millis();
+        if (WiFi.status() != WL_CONNECTED) {
+            Serial.println("[WiFi] Lost connection, reconnecting...");
+            wifiMulti.run();
+        }
+    }
+
+    yield();
     delay(10);
 }

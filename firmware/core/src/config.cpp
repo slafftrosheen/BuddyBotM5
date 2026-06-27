@@ -8,11 +8,11 @@ BuddyConfig buddyConfig;
 // Default Configuration Values
 // ═══════════════════════════════════════
 void configSetDefaults() {
-    // Network
-    strlcpy(buddyConfig.wifi_ssid1, "STARLINK.TAK", sizeof(buddyConfig.wifi_ssid1));
-    strlcpy(buddyConfig.wifi_pass1, "Slaff181188", sizeof(buddyConfig.wifi_pass1));
-    strlcpy(buddyConfig.wifi_ssid2, "TAK", sizeof(buddyConfig.wifi_ssid2));
-    strlcpy(buddyConfig.wifi_pass2, "Slaff181188", sizeof(buddyConfig.wifi_pass2));
+    // Network — configure via /config.json on SD card or web UI
+    memset(buddyConfig.wifi_ssid1, 0, sizeof(buddyConfig.wifi_ssid1));
+    memset(buddyConfig.wifi_pass1, 0, sizeof(buddyConfig.wifi_pass1));
+    memset(buddyConfig.wifi_ssid2, 0, sizeof(buddyConfig.wifi_ssid2));
+    memset(buddyConfig.wifi_pass2, 0, sizeof(buddyConfig.wifi_pass2));
     memset(buddyConfig.wifi_ssid3, 0, sizeof(buddyConfig.wifi_ssid3));
     memset(buddyConfig.wifi_pass3, 0, sizeof(buddyConfig.wifi_pass3));
 
@@ -34,7 +34,7 @@ void configSetDefaults() {
     buddyConfig.blinkRate = 3000;
 
     // API Keys
-    strlcpy(buddyConfig.geminiApiKey, "AIzaSyC2rJzys_Ab-7eXvGrqhUkoVDbRrEF9CYY", sizeof(buddyConfig.geminiApiKey));
+    memset(buddyConfig.geminiApiKey, 0, sizeof(buddyConfig.geminiApiKey));
 
     // Build Tier — use compile-time default, can be overridden
     buddyConfig.buildTier = BUDDY_TIER;

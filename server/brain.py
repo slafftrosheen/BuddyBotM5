@@ -1,6 +1,7 @@
 import os
 import io
 import time
+import logging
 import requests
 from dotenv import load_dotenv
 from fastapi import FastAPI, UploadFile, File, Request, Response
@@ -8,6 +9,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import google.generativeai as genai
 from gtts import gTTS
+
+logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
+log = logging.getLogger('BuddyBrain')
 
 # Load config
 load_dotenv('config.env')
@@ -34,14 +38,14 @@ class ChatRequest(BaseModel):
 def trigger_bot_emotion(emotion_id):
     try:
         requests.post(f"http://{ROBOT_IP}/api/persona", json={"emotion": emotion_id}, timeout=1)
-    except:
-        pass
+    except Exception as e:
+        log.warning(f"Failed to set bot emotion {emotion_id}: {e}")
 
 def trigger_bot_talking(is_talking):
     try:
         requests.post(f"http://{ROBOT_IP}/api/persona", json={"talking": is_talking}, timeout=1)
-    except:
-        pass
+    except Exception as e:
+        log.warning(f"Failed to set bot talking {is_talking}: {e}")
 
 @app.get("/api/health")
 def health_check():
@@ -101,19 +105,18 @@ def chat_with_gemini(req: ChatRequest):
     trigger_bot_emotion(6) # Curious (thinking)
     
     try:
-        model = genai.GenerativeModel('gemini-pro')
+        model = genai.GenerativeModel('gemini-2.0-flash')
         response = model.generate_content(
             f"You are BuddyBot, a friendly robot companion for kids. Keep answers short, fun, and use emojis. The child says: {req.text}"
         )
         reply = response.text
+        log.info(f"Gemini reply: {reply[:80]}...")
         
         trigger_bot_emotion(1) # Happy
         
-        # Optionally trigger TTS here automatically
-        # text_to_speech(ChatRequest(text=reply))
-        
         return {"response": reply}
     except Exception as e:
+        log.error(f"Gemini error: {e}")
         trigger_bot_emotion(5) # Sad (error)
         return {"error": str(e)}
 
