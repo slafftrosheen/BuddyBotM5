@@ -29,8 +29,6 @@ void configSetDefaults() {
     }
 
     // Persona
-    strlcpy(buddyConfig.eyeColorHex, "#00f3ff", sizeof(buddyConfig.eyeColorHex));
-    buddyConfig.eyeSize = 30;
     buddyConfig.blinkRate = 3000;
 
     // API Keys
@@ -96,8 +94,6 @@ void configLoad() {
     }
 
     // Persona
-    if (doc.containsKey("eyeColorHex")) strlcpy(buddyConfig.eyeColorHex, doc["eyeColorHex"], sizeof(buddyConfig.eyeColorHex));
-    if (doc.containsKey("eyeSize")) buddyConfig.eyeSize = doc["eyeSize"];
     if (doc.containsKey("blinkRate")) buddyConfig.blinkRate = doc["blinkRate"];
 
     // API Keys
@@ -153,8 +149,6 @@ void configSave() {
     }
 
     // Persona
-    doc["eyeColorHex"] = buddyConfig.eyeColorHex;
-    doc["eyeSize"] = buddyConfig.eyeSize;
     doc["blinkRate"] = buddyConfig.blinkRate;
 
     // API Keys
@@ -195,8 +189,6 @@ String configToJson() {
         servos.add(buddyConfig.servoInvert[i]);
     }
 
-    doc["eyeColorHex"] = buddyConfig.eyeColorHex;
-    doc["eyeSize"] = buddyConfig.eyeSize;
     doc["blinkRate"] = buddyConfig.blinkRate;
 
     // Mask API key — only show last 4 chars
@@ -253,8 +245,6 @@ bool configApply(const char* json, size_t len) {
     }
 
     // Persona
-    if (doc.containsKey("eyeColorHex")) strlcpy(buddyConfig.eyeColorHex, doc["eyeColorHex"], sizeof(buddyConfig.eyeColorHex));
-    if (doc.containsKey("eyeSize")) buddyConfig.eyeSize = doc["eyeSize"];
     if (doc.containsKey("blinkRate")) buddyConfig.blinkRate = doc["blinkRate"];
 
     // API Keys — only update if non-masked value is sent

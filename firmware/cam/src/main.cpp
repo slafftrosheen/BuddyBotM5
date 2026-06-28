@@ -93,19 +93,29 @@ void setup() {
     WiFi.mode(WIFI_STA);
     wifiMulti.addAP("STARLINK.TAK", WIFI_PASS);
     wifiMulti.addAP("TAK", WIFI_PASS);
+    wifiMulti.addAP("BuddyBot-Setup", "buddy123");
     
     int wifiAttempts = 0;
     while (wifiMulti.run() != WL_CONNECTED) {
         delay(500);
         Serial.print(".");
         wifiAttempts++;
-        if (wifiAttempts > 40) {
-            Serial.println("\nWiFi connection failed! Restarting...");
-            esp_restart();
+        if (wifiAttempts > 30) { // 15 seconds
+            Serial.println("\nWiFi connection failed! Starting SoftAP...");
+            WiFi.disconnect(true);
+            delay(100);
+            WiFi.mode(WIFI_AP);
+            delay(100);
+            WiFi.softAP("BuddyCam-Setup", "buddy123");
+            break;
         }
     }
     Serial.println("");
-    Serial.println("WiFi connected");
+    if (WiFi.getMode() == WIFI_AP) {
+        Serial.println("SoftAP started: BuddyCam-Setup");
+    } else {
+        Serial.println("WiFi connected");
+    }
 
     server.begin();
 
@@ -149,7 +159,7 @@ void loop() {
     static unsigned long lastWiFiCheck = 0;
     if (millis() - lastWiFiCheck > 15000) {
         lastWiFiCheck = millis();
-        if (WiFi.status() != WL_CONNECTED) {
+        if (WiFi.getMode() != WIFI_AP && WiFi.status() != WL_CONNECTED) {
             Serial.println("[WiFi] Reconnecting...");
             wifiMulti.run();
         }

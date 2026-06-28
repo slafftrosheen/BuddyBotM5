@@ -24,8 +24,6 @@ window.populateSettings = function() {
     setToggleState(document.getElementById('cfg-invert-r'), cfg.motorInvertR);
     
     // Persona
-    document.getElementById('eye-color').value = cfg.eyeColorHex || '#00f3ff';
-    document.getElementById('eye-size').value = cfg.eyeSize || 30;
     document.getElementById('blink-rate').value = cfg.blinkRate || 3000;
     
     // Misc
@@ -81,8 +79,6 @@ document.addEventListener('DOMContentLoaded', () => {
             motorInvertL: getToggleState(document.getElementById('cfg-invert-l')),
             motorInvertR: getToggleState(document.getElementById('cfg-invert-r')),
             
-            eyeColorHex: document.getElementById('eye-color').value,
-            eyeSize: parseInt(document.getElementById('eye-size').value),
             blinkRate: parseInt(document.getElementById('blink-rate').value),
             
             camFlip: getToggleState(document.getElementById('cam-flip')),
@@ -129,15 +125,13 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Live Persona Preview
-    ['eye-color', 'eye-size', 'blink-rate'].forEach(id => {
+    ['blink-rate'].forEach(id => {
         document.getElementById(id)?.addEventListener('change', () => {
             // Wait for slider to be released before sending
             fetch('/api/persona', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    eyeColor: document.getElementById('eye-color').value,
-                    eyeSize: parseInt(document.getElementById('eye-size').value),
                     blinkRate: parseInt(document.getElementById('blink-rate').value)
                 })
             }).catch(()=>{});

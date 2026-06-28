@@ -322,12 +322,6 @@ void initServer() {
                 }
             }
 
-            if (doc.containsKey("eyeColor")) {
-                strlcpy(buddyConfig.eyeColorHex, doc["eyeColor"], sizeof(buddyConfig.eyeColorHex));
-            }
-            if (doc.containsKey("eyeSize")) {
-                buddyConfig.eyeSize = doc["eyeSize"] | 30;
-            }
             if (doc.containsKey("blinkRate")) {
                 buddyConfig.blinkRate = doc["blinkRate"] | 3000;
             }
@@ -425,18 +419,44 @@ void setup() {
     M5.begin(cfg);
 
     int sda = 2, scl = 1; // Default CoreS3 Port A
+    int spi_sck = -1, spi_miso = -1, spi_mosi = -1, spi_cs = 4;
+    
     auto board = M5.getBoard();
     if (board == m5::board_t::board_M5StickCPlus || 
         board == m5::board_t::board_M5StickCPlus2 ||
         board == m5::board_t::board_M5StickC) {
         sda = 32;
         scl = 33;
+    } else if (board == m5::board_t::board_M5StackCoreS3) {
+        spi_sck = 36; spi_miso = 35; spi_mosi = 37; spi_cs = 4;
+    } else if (board == m5::board_t::board_M5StackCore2) {
+        spi_sck = 18; spi_miso = 38; spi_mosi = 23; spi_cs = 4;
+    } else if (board == m5::board_t::board_M5Stack) {
+        spi_sck = 18; spi_miso = 19; spi_mosi = 23; spi_cs = 4;
     }
+
     Wire.begin(sda, scl);
 
-    // Mount SD Card FIRST (needed for config)
-    SPI.begin(36, 35, 37, 4);
-    if (!SD.begin(4, SPI, 25000000)) {
+    // Initialize global SPI for SD card if supported
+    if (spi_sck != -1) {
+        SPI.begin(spi_sck, spi_miso, spi_mosi, spi_cs);
+    }
+
+    // Mount SD Card (needed for config)
+    // CoreS3 uses AW9523 to power the SD card, which takes time to stabilize after M5.begin()
+    delay(2000); // WAIT FOR POWER TO FULLY STABILIZE. This prevents the SD card from entering a bad state on boot.
+    int sd_retries = 0;
+    bool sd_mounted = false;
+    while (sd_retries < 10) {
+        SD.end(); // Clean up any failed state
+        delay(100);
+        sd_mounted = SD.begin(spi_cs, SPI, 15000000); // 15MHz for stability
+        if (sd_mounted) break;
+        delay(400);
+        sd_retries++;
+    }
+
+    if (!sd_mounted) {
         M5.Lcd.setTextColor(RED);
         M5.Lcd.println("SD Card: NOT MOUNTED!");
         M5.Lcd.setTextColor(WHITE);

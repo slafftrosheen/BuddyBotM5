@@ -37,8 +37,6 @@ struct BuddyConfig {
     bool servoInvert[8];
     
     // ── Persona ──
-    char eyeColorHex[8];
-    int eyeSize;
     int blinkRate;
     
     // ── API Keys ──
