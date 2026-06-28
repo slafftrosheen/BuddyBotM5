@@ -1,6 +1,6 @@
 #include "sounds.h"
 #include <SD.h>
-#include <M5CoreS3.h>
+#include <M5Unified.h>
 
 // ═══════════════════════════════════════
 // WAV File Playback from SD Card

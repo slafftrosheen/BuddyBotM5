@@ -120,6 +120,33 @@ def chat_with_gemini(req: ChatRequest):
         trigger_bot_emotion(5) # Sad (error)
         return {"error": str(e)}
 
+def track_object(box, image_width=320, image_height=240):
+    # box = [x_min, y_min, x_max, y_max]
+    center_x = (box[0] + box[2]) / 2
+    
+    # Calculate error from center (-1.0 to 1.0)
+    error_x = (center_x - (image_width / 2)) / (image_width / 2)
+    
+    # Proportional control for steering
+    kp_turn = 50.0 
+    turn = int(error_x * kp_turn)
+    
+    # Calculate size (rough proxy for distance)
+    box_width = box[2] - box[0]
+    target_width = image_width * 0.4 # Target width is 40% of screen
+    
+    error_size = (target_width - box_width) / target_width
+    kp_speed = 30.0
+    speed = int(error_size * kp_speed)
+    
+    # Send to robot
+    try:
+        requests.post(f"http://{ROBOT_IP}/api/motors", json={"speed": speed, "turn": turn}, timeout=1)
+    except:
+        pass
+    
+    return {"speed": speed, "turn": turn}
+
 @app.post("/api/detect")
 def yolo_detect():
     """
@@ -127,11 +154,20 @@ def yolo_detect():
     In a real scenario, this grabs a frame from buddycam.local, runs a tflite/onnx YOLO model,
     and returns bounding boxes.
     """
+    detections = [
+        {"class": "person", "confidence": 0.95, "box": [110, 10, 210, 200]} # roughly centered
+    ]
+    
+    # Auto-track the first person detected
+    tracking_action = {"speed": 0, "turn": 0}
+    for det in detections:
+        if det["class"] == "person":
+            tracking_action = track_object(det["box"])
+            break
+            
     return {
-        "detections": [
-            {"class": "person", "confidence": 0.95, "box": [10, 10, 100, 200]},
-            {"class": "dog", "confidence": 0.88, "box": [150, 100, 300, 240]}
-        ]
+        "detections": detections,
+        "tracking": tracking_action
     }
 
 if __name__ == "__main__":

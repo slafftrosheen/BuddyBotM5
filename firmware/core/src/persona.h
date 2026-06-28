@@ -1,7 +1,7 @@
 #ifndef BUDDY_PERSONA_H
 #define BUDDY_PERSONA_H
 
-#include <M5CoreS3.h>
+#include <M5Unified.h>
 #include <SD.h>
 
 // Persona Emotion States

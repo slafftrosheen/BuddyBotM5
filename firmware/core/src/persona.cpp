@@ -82,7 +82,9 @@ void BuddyPersona::drawSprite() {
     if (SD.exists(filename)) {
         File file = SD.open(filename);
         if (file) {
-            M5.Display.drawBmp(&file, 0, 0);
+            int x = (M5.Display.width() - 320) / 2;
+            int y = (M5.Display.height() - 240) / 2;
+            M5.Display.drawBmp(&file, x, y);
             file.close();
         }
     } else {

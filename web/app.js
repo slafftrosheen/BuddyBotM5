@@ -110,6 +110,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 
                 // Update Sensors (Buddy Tab)
+                if (data.battery !== undefined) {
+                    document.getElementById('val-batt').textContent = `${data.battery}%`;
+                    document.getElementById('bar-batt').style.width = `${data.battery}%`;
+                }
                 document.getElementById('val-temp').textContent = `${data.temp.toFixed(1)}°C`;
                 document.getElementById('bar-temp').style.width = `${Math.min(100, data.temp * 2)}%`;
                 

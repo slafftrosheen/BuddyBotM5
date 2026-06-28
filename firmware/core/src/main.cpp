@@ -1,6 +1,6 @@
 #include <Arduino.h>
 #include <SD.h>
-#include <M5CoreS3.h>
+#include <M5Unified.h>
 #include <WiFi.h>
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
@@ -22,6 +22,19 @@
 // IMU State
 float imu_pitch = 0.0;
 float imu_roll = 0.0;
+float imu_yaw = 0.0;
+unsigned long last_imu_time = 0;
+
+// Motor State (Slew Limiting & PID)
+float target_m1 = 0;
+float target_m2 = 0;
+float current_m1 = 0;
+float current_m2 = 0;
+float target_speed = 0;
+float target_turn = 0;
+
+float yaw_target = 0.0;
+bool heading_locked = false;
 
 // Gamification State
 unsigned long lastActivityTime = 0;
@@ -146,12 +159,11 @@ void initWiFi() {
         M5.Lcd.printf("  SSID3: %s\n", buddyConfig.wifi_ssid3);
     }
 
-    int attempts = 0;
+    unsigned long startAttempt = millis();
     while (wifiMulti.run() != WL_CONNECTED) {
-        delay(500);
+        delay(100);
         M5.Lcd.print(".");
-        attempts++;
-        if (attempts > 30) {
+        if (millis() - startAttempt > 15000) {
             // Captive portal fallback
             M5.Lcd.println("\nNo WiFi! Starting AP...");
             WiFi.mode(WIFI_AP);
@@ -218,6 +230,7 @@ void initServer() {
         doc["roll"] = imu_roll;
         doc["heap"] = ESP.getFreeHeap();
         doc["rssi"] = WiFi.RSSI();
+        doc["battery"] = M5.Power.getBatteryLevel();
         doc["uptime"] = millis() / 1000;
         doc["buildTier"] = buddyConfig.buildTier;
         String response;
@@ -245,20 +258,27 @@ void initServer() {
     }, NULL, [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total){
         JsonDocument doc;
         if (!deserializeJson(doc, data, len)) {
-            int speed = doc["speed"];
-            int turn = doc["turn"];
+            target_speed = doc["speed"];
+            target_turn = doc["turn"];
             int trimL = doc["trimL"] | buddyConfig.motorTrimL;
             int trimR = doc["trimR"] | buddyConfig.motorTrimR;
 
-            int m1 = speed + turn + trimL;
-            int m2 = speed - turn + trimR;
-            m1 = constrain(m1, -100, 100);
-            m2 = constrain(m2, -100, 100);
-
-            setMotorSpeeds(m1, m2);
+            // Optional manual trim (will be mostly obsolete with PID)
+            target_m1 = target_speed + target_turn + trimL;
+            target_m2 = target_speed - target_turn + trimR;
+            
+            // Activate Heading Lock if going straight
+            if (abs(target_speed) > 10 && abs(target_turn) < 5) {
+                if (!heading_locked) {
+                    yaw_target = imu_yaw;
+                    heading_locked = true;
+                }
+            } else {
+                heading_locked = false;
+            }
 
 #if BUDDY_TIER >= 1
-            int steer_pulse = map(turn, -100, 100, 0, 180);
+            int steer_pulse = map(target_turn, -100, 100, 0, 180);
             setServoAngle(0, steer_pulse);
 #endif
 
@@ -403,9 +423,16 @@ void setup() {
     auto cfg = M5.config();
     cfg.internal_mic = false;
     M5.begin(cfg);
-    M5.Imu.begin();
-    M5.Speaker.begin();
-    Wire.begin(2, 1);
+
+    int sda = 2, scl = 1; // Default CoreS3 Port A
+    auto board = M5.getBoard();
+    if (board == m5::board_t::board_M5StickCPlus || 
+        board == m5::board_t::board_M5StickCPlus2 ||
+        board == m5::board_t::board_M5StickC) {
+        sda = 32;
+        scl = 33;
+    }
+    Wire.begin(sda, scl);
 
     // Mount SD Card FIRST (needed for config)
     SPI.begin(36, 35, 37, 4);
@@ -476,10 +503,64 @@ void loop() {
     ArduinoOTA.handle();
 
     // IMU processing
-    float ax, ay, az;
+    float ax, ay, az, gx, gy, gz;
     M5.Imu.getAccel(&ax, &ay, &az);
+    M5.Imu.getGyro(&gx, &gy, &gz);
+    
     imu_pitch = atan2(ax, sqrt(ay * ay + az * az)) * 180.0 / PI;
     imu_roll = atan2(ay, az) * 180.0 / PI;
+
+    unsigned long now = millis();
+    float dt = (now - last_imu_time) / 1000.0;
+    if (last_imu_time > 0 && dt > 0) {
+        // Simple deadband for gyro noise
+        if (abs(gz) > 1.5) {
+            imu_yaw += gz * dt;
+        }
+    }
+    last_imu_time = now;
+
+    // ── Motor Control & Slew Rate Limiting ──
+    float m1_req = target_m1;
+    float m2_req = target_m2;
+
+    // Flip/Stall Detection
+    if (abs(imu_pitch) > 45.0) {
+        m1_req = 0;
+        m2_req = 0;
+        target_m1 = 0;
+        target_m2 = 0;
+    } 
+    else if (heading_locked) {
+        // Simple P-Controller for Drive Straight
+        float error = yaw_target - imu_yaw;
+        float p_gain = 1.2;
+        float correction = error * p_gain;
+        
+        m1_req -= correction;
+        m2_req += correction;
+    }
+
+    // Slew Rate (Easing)
+    float slew_rate = 150.0 * dt; // Max change per second
+    
+    if (m1_req > current_m1 + slew_rate) current_m1 += slew_rate;
+    else if (m1_req < current_m1 - slew_rate) current_m1 -= slew_rate;
+    else current_m1 = m1_req;
+
+    if (m2_req > current_m2 + slew_rate) current_m2 += slew_rate;
+    else if (m2_req < current_m2 - slew_rate) current_m2 -= slew_rate;
+    else current_m2 = m2_req;
+
+    current_m1 = constrain(current_m1, -100, 100);
+    current_m2 = constrain(current_m2, -100, 100);
+
+    // Only update I2C if motors are moving or just stopped
+    static bool was_moving = false;
+    if (abs(current_m1) > 1 || abs(current_m2) > 1 || was_moving) {
+        setMotorSpeeds((int)current_m1, (int)current_m2);
+        was_moving = (abs(current_m1) > 1 || abs(current_m2) > 1);
+    }
 
     // Gamification: Petting Detection
     float accMag = sqrt(ax * ax + ay * ay + az * az);
