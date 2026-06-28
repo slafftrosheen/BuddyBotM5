@@ -63,8 +63,8 @@ To give BuddyBot its intelligence and natural voice, you need to set up the Rasp
 2. **Configure the AI Server**
    Copy the `server/` directory from this repository to your Pi.
    ```bash
-   # Install ffmpeg (required for audio format conversion) and venv
-   sudo apt update && sudo apt install -y ffmpeg mpg123 python3-venv
+   # Install ffmpeg (for audio format conversion), venv, and pyaudio build dependencies
+   sudo apt update && sudo apt install -y ffmpeg mpg123 python3-venv python3-dev portaudio19-dev
    
    # Navigate to the server folder
    cd server

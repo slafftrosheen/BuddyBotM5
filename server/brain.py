@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, UploadFile, File, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import google.generativeai as genai
+from google import genai
 from gtts import gTTS
 
 logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
@@ -18,8 +18,9 @@ load_dotenv('config.env')
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 ROBOT_IP = os.getenv("ROBOT_IP", "buddy.local")
 
+client = None
 if GEMINI_API_KEY and GEMINI_API_KEY != "YOUR_GEMINI_API_KEY":
-    genai.configure(api_key=GEMINI_API_KEY)
+    client = genai.Client(api_key=GEMINI_API_KEY)
 
 app = FastAPI(title="BuddyBot Brain")
 
@@ -105,9 +106,9 @@ def chat_with_gemini(req: ChatRequest):
     trigger_bot_emotion(6) # Curious (thinking)
     
     try:
-        model = genai.GenerativeModel('gemini-2.0-flash')
-        response = model.generate_content(
-            f"You are BuddyBot, a friendly robot companion for kids. Keep answers short, fun, and use emojis. The child says: {req.text}"
+        response = client.models.generate_content(
+            model='gemini-2.0-flash',
+            contents=f"You are BuddyBot, a friendly robot companion for kids. Keep answers short, fun, and use emojis. The child says: {req.text}"
         )
         reply = response.text
         log.info(f"Gemini reply: {reply[:80]}...")
