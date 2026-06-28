@@ -10,6 +10,8 @@
 // ==========================================
 // The hostname of the Pi Zero on the TAK network
 const char* PI_HOSTNAME = "buddybrain"; 
+// If mDNS doesn't work, enter the exact IP address here and leave PI_HOSTNAME alone:
+const char* PI_STATIC_IP = ""; 
 const int PI_PORT = 8000;
 const int BUTTON_PIN = 41;
 
@@ -68,15 +70,19 @@ void initVoiceAssistant() {
 }
 
 void sendToPi(uint8_t* payload, size_t payloadSize) {
-    Serial.println("Looking for buddybrain.local...");
-    IPAddress serverIP = MDNS.queryHost(PI_HOSTNAME);
-    
-    if (serverIP.toString() == "0.0.0.0") {
-        Serial.println("Could not find Pi Zero (buddybrain.local) on the network!");
-        return;
+    String targetIP = String(PI_STATIC_IP);
+    if (targetIP == "") {
+        Serial.println("Looking for buddybrain.local...");
+        IPAddress serverIP = MDNS.queryHost(PI_HOSTNAME);
+        
+        if (serverIP.toString() == "0.0.0.0") {
+            Serial.println("Could not find Pi Zero (buddybrain.local) on the network!");
+            return;
+        }
+        targetIP = serverIP.toString();
     }
 
-    String url = "http://" + serverIP.toString() + ":" + String(PI_PORT) + "/api/voice";
+    String url = "http://" + targetIP + ":" + String(PI_PORT) + "/api/voice";
     Serial.println("Connecting to: " + url);
 
     HTTPClient http;

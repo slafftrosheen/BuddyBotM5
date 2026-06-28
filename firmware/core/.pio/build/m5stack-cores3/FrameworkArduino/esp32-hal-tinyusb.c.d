@@ -1,6 +1,6 @@
 .pio/build/m5stack-cores3/FrameworkArduino/esp32-hal-tinyusb.c.o: \
  C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/cores/esp32/esp32-hal-tinyusb.c \
- C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/tools/sdk/esp32s3/qio_qspi/include/sdkconfig.h \
+ C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/tools/sdk/esp32s3/qio_opi/include/sdkconfig.h \
  C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/tools/sdk/esp32s3/include/log/include/esp_log.h \
  C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/tools/sdk/esp32s3/include/esp_rom/include/esp_rom_sys.h \
  C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/tools/sdk/esp32s3/include/soc/esp32s3/include/soc/reset_reasons.h \

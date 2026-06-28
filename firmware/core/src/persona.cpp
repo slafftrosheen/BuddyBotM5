@@ -4,129 +4,140 @@
 BuddyPersona persona;
 
 BuddyPersona::BuddyPersona() {
-    currentEmotion = EMO_CHILL;
-    targetEmotion = EMO_CHILL;
+    currentEmotion = EMO_NORMAL;
     isTalking = false;
-    isBlinking = false;
-    lastBlinkTime = 0;
-    blinkDuration = 150; // ms
-    nextBlinkDelay = 3000;
     lastTalkToggleTime = 0;
-    talkMouthOpen = false;
+    talkingState = false;
 }
 
 void BuddyPersona::begin() {
-    // Initial draw
-    nextBlinkDelay = buddyConfig.blinkRate;
-    if (nextBlinkDelay < 500) nextBlinkDelay = 3000;
-    drawSprite();
+    // Dynamically apply config sizing/fps
+    roboEyes.eyeLwidthDefault = buddyConfig.eyeSizeX;
+    roboEyes.eyeLheightDefault = buddyConfig.eyeSizeY;
+    roboEyes.eyeRwidthDefault = buddyConfig.eyeSizeX;
+    roboEyes.eyeRheightDefault = buddyConfig.eyeSizeY;
+    roboEyes.frameInterval = 1000 / (buddyConfig.eyeFps > 0 ? buddyConfig.eyeFps : 60);
+    roboEyes.colorMain = buddyConfig.eyeColorMain;
+    roboEyes.colorBg = buddyConfig.eyeColorBg;
+    roboEyes.blinkInterval = buddyConfig.blinkRate / 1000;
+
+    // RoboEyes needs to be started. It uses LovyanGFX directly.
+    roboEyes.begin(&CoreS3.Display, 320, 240, 50);
+    
+    // Enable auto-blinking and idle looking around for a lifelike feel
+    roboEyes.autoblinker = 1;
+    roboEyes.idle = 1;
+    
+    setEmotion(EMO_NORMAL);
 }
 
 void BuddyPersona::setEmotion(EmotionState newEmotion) {
-    if (currentEmotion != newEmotion) {
-        currentEmotion = newEmotion;
-        targetEmotion = newEmotion;
-        isBlinking = false; // Reset blink state on emotion change
-        drawSprite();
+    if (currentEmotion == newEmotion) return;
+    currentEmotion = newEmotion;
+    
+    // Reset all emotion flags first
+    roboEyes.tired = 0;
+    roboEyes.angry = 0;
+    roboEyes.happy = 0;
+    roboEyes.curious = 0;
+    roboEyes.cyclops = 0;
+    roboEyes.confused = 0;
+    roboEyes.laugh = 0;
+    roboEyes.hFlicker = 0;
+    roboEyes.vFlicker = 0;
+    roboEyes.autoblinker = 1;
+    roboEyes.open(true, true);
+    
+    // Reset to defaults
+    roboEyes.eyelidsTiredHeight = roboEyes.eyeLheightDefault;
+    roboEyes.vFlickerAmplitude = 5;
+    roboEyes.hFlickerAmplitude = 5;
+    
+    // Map BuddyBot states to RoboEyes flags
+    switch(currentEmotion) {
+        case EMO_NORMAL:
+            break;
+        case EMO_HAPPY:
+            roboEyes.happy = 1;
+            break;
+        case EMO_ANGRY:
+            roboEyes.angry = 1;
+            break;
+        case EMO_SAD:
+            roboEyes.tired = 1;
+            roboEyes.eyelidsTiredHeight = roboEyes.eyeLheightDefault / 2;
+            break;
+        case EMO_SLEEPY:
+            roboEyes.tired = 1;
+            roboEyes.autoblinker = 0;
+            roboEyes.close();
+            break;
+        case EMO_DOUBTFUL:
+            roboEyes.curious = 1;
+            break;
+        case EMO_COLD:
+            roboEyes.hFlicker = 1;
+            break;
+        case EMO_HOT:
+            roboEyes.tired = 1;
+            roboEyes.vFlicker = 1;
+            roboEyes.vFlickerAmplitude = 2;
+            break;
+        case EMO_EXCITED:
+            roboEyes.laugh = 1;
+            roboEyes.vFlicker = 1;
+            roboEyes.vFlickerAmplitude = 10;
+            break;
+        case EMO_SHOCKED:
+        case EMO_DIZZY:
+            roboEyes.hFlicker = 1;
+            roboEyes.hFlickerAmplitude = 5;
+            roboEyes.curious = 1;
+            break;
+        case EMO_CYCLOPS:
+            roboEyes.cyclops = 1;
+            break;
     }
 }
 
 void BuddyPersona::startTalking() {
     isTalking = true;
-    talkMouthOpen = true;
-    lastTalkToggleTime = millis();
-    drawSprite();
 }
 
 void BuddyPersona::stopTalking() {
     isTalking = false;
-    talkMouthOpen = false;
-    drawSprite();
-}
-
-String BuddyPersona::getEmotionFilename(EmotionState emo) {
-    switch (emo) {
-        case EMO_CHILL:   return "/sprites/chill";
-        case EMO_HAPPY:   return "/sprites/happy";
-        case EMO_GRUMPY:  return "/sprites/grumpy";
-        case EMO_SLEEPY:  return "/sprites/sleepy";
-        case EMO_EXCITED: return "/sprites/excited";
-        case EMO_SAD:     return "/sprites/sad";
-        case EMO_CURIOUS: return "/sprites/curious";
-        case EMO_ALERT:   return "/sprites/alert";
-        case EMO_LOVE:    return "/sprites/love";
-        case EMO_SHOCKED: return "/sprites/shocked";
-        case EMO_DIZZY:   return "/sprites/dizzy";
-        case EMO_COOL:    return "/sprites/cool";
-        default:          return "/sprites/chill";
-    }
-}
-
-void BuddyPersona::drawSprite() {
-    String filename = getEmotionFilename(currentEmotion);
-    
-    // Modify filename based on state
-    if (isBlinking) {
-        filename += "_blink";
-    } else if (isTalking) {
-        if (talkMouthOpen) {
-            filename += "_talk_open";
-        } else {
-            filename += "_talk_close";
-        }
-    }
-    
-    filename += ".bmp"; // We use BMP for fast decoding on ESP32
-    
-    // Check if file exists to prevent black screen if missing
-    if (SD.exists(filename)) {
-        File file = SD.open(filename);
-        if (file) {
-            int x = (M5.Display.width() - 320) / 2;
-            int y = (M5.Display.height() - 240) / 2;
-            M5.Display.drawBmp(&file, x, y);
-            file.close();
-        }
-    } else {
-        // Fallback if sprite is missing: clear screen and print emotion name
-        M5.Display.fillScreen(BLACK);
-        M5.Display.setTextColor(WHITE, BLACK);
-        M5.Display.setTextSize(2);
-        M5.Display.setCursor(10, 10);
-        M5.Display.printf("Missing: %s", filename.c_str());
+    if (talkingState) {
+        roboEyes.vFlicker = 0;
+        talkingState = false;
     }
 }
 
 void BuddyPersona::update() {
-    unsigned long now = millis();
-    
-    // Handle blinking
-    if (!isBlinking && !isTalking) {
-        if (now - lastBlinkTime > nextBlinkDelay) {
-            isBlinking = true;
-            lastBlinkTime = now;
-            drawSprite();
-        }
-    } else if (isBlinking) {
-        if (now - lastBlinkTime > blinkDuration) {
-            isBlinking = false;
-            lastBlinkTime = now;
+    // Apply dynamic config variables to preview in UI instantly
+    roboEyes.eyeLwidthDefault = buddyConfig.eyeSizeX;
+    roboEyes.eyeLheightDefault = buddyConfig.eyeSizeY;
+    roboEyes.eyeRwidthDefault = buddyConfig.eyeSizeX;
+    roboEyes.eyeRheightDefault = buddyConfig.eyeSizeY;
+    roboEyes.frameInterval = 1000 / (buddyConfig.eyeFps > 0 ? buddyConfig.eyeFps : 60);
+    roboEyes.colorMain = buddyConfig.eyeColorMain;
+    roboEyes.colorBg = buddyConfig.eyeColorBg;
+    roboEyes.blinkInterval = buddyConfig.blinkRate / 1000;
+
+    // Handle talking animation
+    if (isTalking) {
+        if (millis() - lastTalkToggleTime > 100) {
+            talkingState = !talkingState;
+            lastTalkToggleTime = millis();
             
-            // Calculate next blink delay based on config with some randomness
-            uint32_t baseRate = buddyConfig.blinkRate;
-            if (baseRate < 500) baseRate = 3000;
-            nextBlinkDelay = baseRate + random(-500, 1000);
-            
-            drawSprite();
+            if (talkingState) {
+                roboEyes.vFlicker = 1;
+                roboEyes.vFlickerAmplitude = 4;
+            } else {
+                roboEyes.vFlicker = 0;
+            }
         }
     }
     
-    // Handle talking animation (mouth flapping)
-    if (isTalking && !isBlinking) {
-        if (now - lastTalkToggleTime > 150) { // Flap mouth every 150ms
-            talkMouthOpen = !talkMouthOpen;
-            lastTalkToggleTime = now;
-            drawSprite();
-        }
-    }
+    // Process blinking and emotion animation
+    roboEyes.update();
 }

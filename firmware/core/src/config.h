@@ -8,14 +8,7 @@
 // Persists to /config.json on SD card
 // ═══════════════════════════════════════
 
-// Build Tier (set at compile time via platformio.ini)
-#ifdef BUDDY_TIER_MAX
-    #define BUDDY_TIER 2
-#elif defined(BUDDY_TIER_PRO)
-    #define BUDDY_TIER 1
-#else
-    #define BUDDY_TIER 0  // Lite is default
-#endif
+// Auto-Detected Hardware Flags
 
 struct BuddyConfig {
     // ── Network ──
@@ -26,6 +19,10 @@ struct BuddyConfig {
     char wifi_ssid3[32];
     char wifi_pass3[64];
     
+    // Network & External Devices
+    char camIp[32];
+    char piIp[32];
+
     // ── Motors ──
     int motorTrimL;
     int motorTrimR;
@@ -38,14 +35,19 @@ struct BuddyConfig {
     
     // ── Persona ──
     int blinkRate;
+    int eyeSizeX;
+    int eyeSizeY;
+    int eyeFps;
+    uint32_t eyeColorMain;
+    uint32_t eyeColorBg;
     
     // ── API Keys ──
     char geminiApiKey[64];
     
-    // ── Build Tier ──
-    // 0=Lite, 1=Pro, 2=Max
-    // Auto-detected at boot, can be overridden in config
-    int buildTier;
+    // ── Hardware State ──
+    bool hasServo;
+    bool hasCam;
+    bool hasPi;
     
     // ── Misc ──
     bool camFlip;
@@ -61,4 +63,5 @@ void configSetDefaults();
 void configLoad();      // Load from /config.json on SD
 void configSave();      // Save to /config.json on SD
 String configToJson();  // Serialize current config to JSON string
-bool configApply(const char* json, size_t len);  // Apply JSON patch to config
+bool configApply(const char* json, size_t len);
+extern bool needsConfigSave;  // Apply JSON patch to config

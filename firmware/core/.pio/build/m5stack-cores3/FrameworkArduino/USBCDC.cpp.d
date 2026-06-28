@@ -1,7 +1,7 @@
 .pio/build/m5stack-cores3/FrameworkArduino/USBCDC.cpp.o: \
  C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/cores/esp32/USBCDC.cpp \
  C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/cores/esp32/USB.h \
- C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/tools/sdk/esp32s3/qio_qspi/include/sdkconfig.h \
+ C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/tools/sdk/esp32s3/qio_opi/include/sdkconfig.h \
  C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/tools/sdk/esp32s3/include/esp_event/include/esp_event.h \
  C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/tools/sdk/esp32s3/include/esp_common/include/esp_err.h \
  C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/tools/sdk/esp32s3/include/esp_common/include/esp_compiler.h \

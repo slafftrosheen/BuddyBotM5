@@ -3,7 +3,7 @@
  .pio/libdeps/m5stack-cores3/M5Unified/src/utility/Log_Class.hpp \
  .pio/libdeps/m5stack-cores3/M5Unified/src/utility/m5unified_common.h \
  C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/tools/sdk/esp32s3/include/log/include/esp_log.h \
- C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/tools/sdk/esp32s3/qio_qspi/include/sdkconfig.h \
+ C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/tools/sdk/esp32s3/qio_opi/include/sdkconfig.h \
  C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/tools/sdk/esp32s3/include/esp_rom/include/esp_rom_sys.h \
  C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/tools/sdk/esp32s3/include/soc/esp32s3/include/soc/reset_reasons.h \
  C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/tools/sdk/esp32s3/include/esp_rom/include/esp32s3/rom/ets_sys.h \

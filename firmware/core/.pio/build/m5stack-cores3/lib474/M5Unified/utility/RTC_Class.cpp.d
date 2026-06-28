@@ -2,7 +2,7 @@
  .pio/libdeps/m5stack-cores3/M5Unified/src/utility/RTC_Class.cpp \
  .pio/libdeps/m5stack-cores3/M5Unified/src/utility/../M5Unified.hpp \
  .pio/libdeps/m5stack-cores3/M5Unified/src/utility/../utility/m5unified_common.h \
- C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/tools/sdk/esp32s3/qio_qspi/include/sdkconfig.h \
+ C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/tools/sdk/esp32s3/qio_opi/include/sdkconfig.h \
  .pio/libdeps/m5stack-cores3/M5GFX/src/M5GFX.h \
  .pio/libdeps/m5stack-cores3/M5GFX/src/lgfx/v1/gitTagVersion.h \
  .pio/libdeps/m5stack-cores3/M5GFX/src/lgfx/v1/platforms/device.hpp \

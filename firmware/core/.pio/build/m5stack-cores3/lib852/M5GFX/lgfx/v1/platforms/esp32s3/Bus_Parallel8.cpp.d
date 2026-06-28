@@ -1,6 +1,6 @@
 .pio/build/m5stack-cores3/lib852/M5GFX/lgfx/v1/platforms/esp32s3/Bus_Parallel8.cpp.o: \
  .pio/libdeps/m5stack-cores3/M5GFX/src/lgfx/v1/platforms/esp32s3/Bus_Parallel8.cpp \
- C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/tools/sdk/esp32s3/qio_qspi/include/sdkconfig.h \
+ C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/tools/sdk/esp32s3/qio_opi/include/sdkconfig.h \
  C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/tools/sdk/esp32s3/include/esp_lcd/include/esp_lcd_panel_io.h \
  C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/tools/sdk/esp32s3/include/esp_common/include/esp_err.h \
  C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/tools/sdk/esp32s3/include/esp_common/include/esp_compiler.h \

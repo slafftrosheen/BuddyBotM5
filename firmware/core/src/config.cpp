@@ -3,6 +3,7 @@
 
 // Global config instance
 BuddyConfig buddyConfig;
+bool needsConfigSave = false;
 
 // ═══════════════════════════════════════
 // Default Configuration Values
@@ -13,8 +14,12 @@ void configSetDefaults() {
     memset(buddyConfig.wifi_pass1, 0, sizeof(buddyConfig.wifi_pass1));
     memset(buddyConfig.wifi_ssid2, 0, sizeof(buddyConfig.wifi_ssid2));
     memset(buddyConfig.wifi_pass2, 0, sizeof(buddyConfig.wifi_pass2));
-    memset(buddyConfig.wifi_ssid3, 0, sizeof(buddyConfig.wifi_ssid3));
-    memset(buddyConfig.wifi_pass3, 0, sizeof(buddyConfig.wifi_pass3));
+    strlcpy(buddyConfig.wifi_ssid3, "", sizeof(buddyConfig.wifi_ssid3));
+    strlcpy(buddyConfig.wifi_pass3, "", sizeof(buddyConfig.wifi_pass3));
+    
+    // Camera
+    strlcpy(buddyConfig.camIp, "", sizeof(buddyConfig.camIp));
+    strlcpy(buddyConfig.piIp, "", sizeof(buddyConfig.piIp));
 
     // Motors
     buddyConfig.motorTrimL = 0;
@@ -30,12 +35,19 @@ void configSetDefaults() {
 
     // Persona
     buddyConfig.blinkRate = 3000;
+    buddyConfig.eyeSizeX = 72;
+    buddyConfig.eyeSizeY = 72;
+    buddyConfig.eyeFps = 20;
+    buddyConfig.eyeColorMain = 0x867D;
+    buddyConfig.eyeColorBg = 0x0000;
 
     // API Keys
     memset(buddyConfig.geminiApiKey, 0, sizeof(buddyConfig.geminiApiKey));
 
-    // Build Tier — use compile-time default, can be overridden
-    buddyConfig.buildTier = BUDDY_TIER;
+    // Hardware State
+    buddyConfig.hasServo = false;
+    buddyConfig.hasCam = false;
+    buddyConfig.hasPi = false;
 
     // Misc
     buddyConfig.camFlip = false;
@@ -71,12 +83,14 @@ void configLoad() {
     }
 
     // Network
-    if (doc.containsKey("wifi_ssid1")) strlcpy(buddyConfig.wifi_ssid1, doc["wifi_ssid1"], sizeof(buddyConfig.wifi_ssid1));
-    if (doc.containsKey("wifi_pass1")) strlcpy(buddyConfig.wifi_pass1, doc["wifi_pass1"], sizeof(buddyConfig.wifi_pass1));
-    if (doc.containsKey("wifi_ssid2")) strlcpy(buddyConfig.wifi_ssid2, doc["wifi_ssid2"], sizeof(buddyConfig.wifi_ssid2));
-    if (doc.containsKey("wifi_pass2")) strlcpy(buddyConfig.wifi_pass2, doc["wifi_pass2"], sizeof(buddyConfig.wifi_pass2));
-    if (doc.containsKey("wifi_ssid3")) strlcpy(buddyConfig.wifi_ssid3, doc["wifi_ssid3"], sizeof(buddyConfig.wifi_ssid3));
-    if (doc.containsKey("wifi_pass3")) strlcpy(buddyConfig.wifi_pass3, doc["wifi_pass3"], sizeof(buddyConfig.wifi_pass3));
+    if (!doc["wifi_ssid1"].isNull()) strlcpy(buddyConfig.wifi_ssid1, doc["wifi_ssid1"] | "", sizeof(buddyConfig.wifi_ssid1));
+    if (!doc["wifi_pass1"].isNull()) strlcpy(buddyConfig.wifi_pass1, doc["wifi_pass1"] | "", sizeof(buddyConfig.wifi_pass1));
+    if (!doc["wifi_ssid2"].isNull()) strlcpy(buddyConfig.wifi_ssid2, doc["wifi_ssid2"] | "", sizeof(buddyConfig.wifi_ssid2));
+    if (!doc["wifi_pass2"].isNull()) strlcpy(buddyConfig.wifi_pass2, doc["wifi_pass2"] | "", sizeof(buddyConfig.wifi_pass2));
+    if (!doc["wifi_ssid3"].isNull()) strlcpy(buddyConfig.wifi_ssid3, doc["wifi_ssid3"] | "", sizeof(buddyConfig.wifi_ssid3));
+    if (!doc["wifi_pass3"].isNull()) strlcpy(buddyConfig.wifi_pass3, doc["wifi_pass3"] | "", sizeof(buddyConfig.wifi_pass3));
+    if (!doc["camIp"].isNull()) strlcpy(buddyConfig.camIp, doc["camIp"] | "", sizeof(buddyConfig.camIp));
+    if (!doc["piIp"].isNull()) strlcpy(buddyConfig.piIp, doc["piIp"] | "", sizeof(buddyConfig.piIp));
 
     // Motors
     if (doc.containsKey("motorTrimL")) buddyConfig.motorTrimL = doc["motorTrimL"];
@@ -95,20 +109,31 @@ void configLoad() {
 
     // Persona
     if (doc.containsKey("blinkRate")) buddyConfig.blinkRate = doc["blinkRate"];
+    if (doc.containsKey("eyeSizeX")) buddyConfig.eyeSizeX = doc["eyeSizeX"];
+    if (doc.containsKey("eyeSizeY")) buddyConfig.eyeSizeY = doc["eyeSizeY"];
+    if (doc.containsKey("eyeFps")) buddyConfig.eyeFps = doc["eyeFps"];
+    if (doc.containsKey("eyeColorMain")) buddyConfig.eyeColorMain = doc["eyeColorMain"];
+    if (doc.containsKey("eyeColorBg")) buddyConfig.eyeColorBg = doc["eyeColorBg"];
+    if (doc.containsKey("eyeSizeX")) buddyConfig.eyeSizeX = doc["eyeSizeX"];
+    if (doc.containsKey("eyeSizeY")) buddyConfig.eyeSizeY = doc["eyeSizeY"];
+    if (doc.containsKey("eyeFps")) buddyConfig.eyeFps = doc["eyeFps"];
+    if (doc.containsKey("eyeColorMain")) buddyConfig.eyeColorMain = doc["eyeColorMain"];
+    if (doc.containsKey("eyeColorBg")) buddyConfig.eyeColorBg = doc["eyeColorBg"];
 
     // API Keys
     if (doc.containsKey("geminiApiKey")) strlcpy(buddyConfig.geminiApiKey, doc["geminiApiKey"], sizeof(buddyConfig.geminiApiKey));
 
-    // Build Tier
-    if (doc.containsKey("buildTier")) buddyConfig.buildTier = doc["buildTier"];
-
+    // Hardware State
+    if (doc.containsKey("hasServo")) buddyConfig.hasServo = doc["hasServo"];
+    if (doc.containsKey("hasCam")) buddyConfig.hasCam = doc["hasCam"];
+    if (doc.containsKey("hasPi")) buddyConfig.hasPi = doc["hasPi"];
     // Misc
     if (doc.containsKey("camFlip")) buddyConfig.camFlip = doc["camFlip"];
     if (doc.containsKey("camMirror")) buddyConfig.camMirror = doc["camMirror"];
     if (doc.containsKey("speakerVolume")) buddyConfig.speakerVolume = doc["speakerVolume"];
 
-    Serial.printf("[Config] Loaded. Tier=%d, InvertL=%d, InvertR=%d\n",
-        buddyConfig.buildTier, buddyConfig.motorInvertL, buddyConfig.motorInvertR);
+    Serial.printf("[Config] Loaded. InvertL=%d, InvertR=%d\n",
+        buddyConfig.motorInvertL, buddyConfig.motorInvertR);
 }
 
 // ═══════════════════════════════════════
@@ -134,6 +159,8 @@ void configSave() {
     doc["wifi_pass2"] = buddyConfig.wifi_pass2;
     doc["wifi_ssid3"] = buddyConfig.wifi_ssid3;
     doc["wifi_pass3"] = buddyConfig.wifi_pass3;
+    doc["camIp"] = buddyConfig.camIp;
+    doc["piIp"] = buddyConfig.piIp;
 
     // Motors
     doc["motorTrimL"] = buddyConfig.motorTrimL;
@@ -150,12 +177,24 @@ void configSave() {
 
     // Persona
     doc["blinkRate"] = buddyConfig.blinkRate;
+    doc["eyeSizeX"] = buddyConfig.eyeSizeX;
+    doc["eyeSizeY"] = buddyConfig.eyeSizeY;
+    doc["eyeFps"] = buddyConfig.eyeFps;
+    doc["eyeColorMain"] = buddyConfig.eyeColorMain;
+    doc["eyeColorBg"] = buddyConfig.eyeColorBg;
+    doc["eyeSizeX"] = buddyConfig.eyeSizeX;
+    doc["eyeSizeY"] = buddyConfig.eyeSizeY;
+    doc["eyeFps"] = buddyConfig.eyeFps;
+    doc["eyeColorMain"] = buddyConfig.eyeColorMain;
+    doc["eyeColorBg"] = buddyConfig.eyeColorBg;
 
     // API Keys
     doc["geminiApiKey"] = buddyConfig.geminiApiKey;
 
-    // Build Tier
-    doc["buildTier"] = buddyConfig.buildTier;
+    // Hardware State
+    doc["hasServo"] = buddyConfig.hasServo;
+    doc["hasCam"] = buddyConfig.hasCam;
+    doc["hasPi"] = buddyConfig.hasPi;
 
     // Misc
     doc["camFlip"] = buddyConfig.camFlip;
@@ -199,7 +238,9 @@ String configToJson() {
     }
     doc["geminiApiKey"] = maskedKey;
 
-    doc["buildTier"] = buddyConfig.buildTier;
+    doc["hasServo"] = buddyConfig.hasServo;
+    doc["hasCam"] = buddyConfig.hasCam;
+    doc["hasPi"] = buddyConfig.hasPi;
     doc["camFlip"] = buddyConfig.camFlip;
     doc["camMirror"] = buddyConfig.camMirror;
     doc["speakerVolume"] = buddyConfig.speakerVolume;
@@ -222,12 +263,14 @@ bool configApply(const char* json, size_t len) {
     }
 
     // Network
-    if (doc.containsKey("wifi_ssid1")) strlcpy(buddyConfig.wifi_ssid1, doc["wifi_ssid1"], sizeof(buddyConfig.wifi_ssid1));
-    if (doc.containsKey("wifi_pass1")) strlcpy(buddyConfig.wifi_pass1, doc["wifi_pass1"], sizeof(buddyConfig.wifi_pass1));
-    if (doc.containsKey("wifi_ssid2")) strlcpy(buddyConfig.wifi_ssid2, doc["wifi_ssid2"], sizeof(buddyConfig.wifi_ssid2));
-    if (doc.containsKey("wifi_pass2")) strlcpy(buddyConfig.wifi_pass2, doc["wifi_pass2"], sizeof(buddyConfig.wifi_pass2));
-    if (doc.containsKey("wifi_ssid3")) strlcpy(buddyConfig.wifi_ssid3, doc["wifi_ssid3"], sizeof(buddyConfig.wifi_ssid3));
-    if (doc.containsKey("wifi_pass3")) strlcpy(buddyConfig.wifi_pass3, doc["wifi_pass3"], sizeof(buddyConfig.wifi_pass3));
+    if (!doc["wifi_ssid1"].isNull()) strlcpy(buddyConfig.wifi_ssid1, doc["wifi_ssid1"] | "", sizeof(buddyConfig.wifi_ssid1));
+    if (!doc["wifi_pass1"].isNull()) strlcpy(buddyConfig.wifi_pass1, doc["wifi_pass1"] | "", sizeof(buddyConfig.wifi_pass1));
+    if (!doc["wifi_ssid2"].isNull()) strlcpy(buddyConfig.wifi_ssid2, doc["wifi_ssid2"] | "", sizeof(buddyConfig.wifi_ssid2));
+    if (!doc["wifi_pass2"].isNull()) strlcpy(buddyConfig.wifi_pass2, doc["wifi_pass2"] | "", sizeof(buddyConfig.wifi_pass2));
+    if (!doc["wifi_ssid3"].isNull()) strlcpy(buddyConfig.wifi_ssid3, doc["wifi_ssid3"] | "", sizeof(buddyConfig.wifi_ssid3));
+    if (!doc["wifi_pass3"].isNull()) strlcpy(buddyConfig.wifi_pass3, doc["wifi_pass3"] | "", sizeof(buddyConfig.wifi_pass3));
+    if (!doc["camIp"].isNull()) strlcpy(buddyConfig.camIp, doc["camIp"] | "", sizeof(buddyConfig.camIp));
+    if (!doc["piIp"].isNull()) strlcpy(buddyConfig.piIp, doc["piIp"] | "", sizeof(buddyConfig.piIp));
 
     // Motors
     if (doc.containsKey("motorTrimL")) buddyConfig.motorTrimL = doc["motorTrimL"];
@@ -246,6 +289,16 @@ bool configApply(const char* json, size_t len) {
 
     // Persona
     if (doc.containsKey("blinkRate")) buddyConfig.blinkRate = doc["blinkRate"];
+    if (doc.containsKey("eyeSizeX")) buddyConfig.eyeSizeX = doc["eyeSizeX"];
+    if (doc.containsKey("eyeSizeY")) buddyConfig.eyeSizeY = doc["eyeSizeY"];
+    if (doc.containsKey("eyeFps")) buddyConfig.eyeFps = doc["eyeFps"];
+    if (doc.containsKey("eyeColorMain")) buddyConfig.eyeColorMain = doc["eyeColorMain"];
+    if (doc.containsKey("eyeColorBg")) buddyConfig.eyeColorBg = doc["eyeColorBg"];
+    if (doc.containsKey("eyeSizeX")) buddyConfig.eyeSizeX = doc["eyeSizeX"];
+    if (doc.containsKey("eyeSizeY")) buddyConfig.eyeSizeY = doc["eyeSizeY"];
+    if (doc.containsKey("eyeFps")) buddyConfig.eyeFps = doc["eyeFps"];
+    if (doc.containsKey("eyeColorMain")) buddyConfig.eyeColorMain = doc["eyeColorMain"];
+    if (doc.containsKey("eyeColorBg")) buddyConfig.eyeColorBg = doc["eyeColorBg"];
 
     // API Keys — only update if non-masked value is sent
     if (doc.containsKey("geminiApiKey")) {
@@ -255,14 +308,15 @@ bool configApply(const char* json, size_t len) {
         }
     }
 
-    // Build Tier
-    if (doc.containsKey("buildTier")) buddyConfig.buildTier = doc["buildTier"];
-
+    // Hardware State
+    if (doc.containsKey("hasServo")) buddyConfig.hasServo = doc["hasServo"];
+    if (doc.containsKey("hasCam")) buddyConfig.hasCam = doc["hasCam"];
+    if (doc.containsKey("hasPi")) buddyConfig.hasPi = doc["hasPi"];
     // Misc
     if (doc.containsKey("camFlip")) buddyConfig.camFlip = doc["camFlip"];
     if (doc.containsKey("camMirror")) buddyConfig.camMirror = doc["camMirror"];
     if (doc.containsKey("speakerVolume")) buddyConfig.speakerVolume = doc["speakerVolume"];
 
-    configSave();
+    needsConfigSave = true;
     return true;
 }

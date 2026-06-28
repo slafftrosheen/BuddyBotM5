@@ -199,8 +199,6 @@
  C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32/libraries/WiFi/src/WiFiUdp.h \
  C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32/cores/esp32/Udp.h \
  C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32/cores/esp32/cbuf.h \
- C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32/libraries/WiFi/src/WiFiMulti.h \
- C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32/libraries/WiFi/src/WiFi.h \
  C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32/libraries/ESPmDNS/src/ESPmDNS.h \
  C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32s3/include/mdns/include/mdns.h \
  C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32s3/include/esp32-camera/driver/include/esp_camera.h \

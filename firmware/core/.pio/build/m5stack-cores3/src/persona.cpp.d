@@ -1,8 +1,9 @@
 .pio/build/m5stack-cores3/src/persona.cpp.o: src/persona.cpp \
- src/persona.h .pio/libdeps/m5stack-cores3/M5Unified/src/M5Unified.h \
+ src/persona.h .pio/libdeps/m5stack-cores3/M5CoreS3/src/M5CoreS3.h \
+ .pio/libdeps/m5stack-cores3/M5Unified/src/M5Unified.h \
  .pio/libdeps/m5stack-cores3/M5Unified/src/M5Unified.hpp \
  .pio/libdeps/m5stack-cores3/M5Unified/src/utility/m5unified_common.h \
- C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/tools/sdk/esp32s3/qio_qspi/include/sdkconfig.h \
+ C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/tools/sdk/esp32s3/qio_opi/include/sdkconfig.h \
  .pio/libdeps/m5stack-cores3/M5GFX/src/M5GFX.h \
  .pio/libdeps/m5stack-cores3/M5GFX/src/lgfx/v1/gitTagVersion.h \
  .pio/libdeps/m5stack-cores3/M5GFX/src/lgfx/v1/platforms/device.hpp \
@@ -307,9 +308,15 @@
  .pio/libdeps/m5stack-cores3/M5Unified/src/utility/imu/IMU_Base.hpp \
  .pio/libdeps/m5stack-cores3/M5Unified/src/utility/imu/../I2C_Class.hpp \
  .pio/libdeps/m5stack-cores3/M5Unified/src/utility/IOExpander_Base.hpp \
- C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/libraries/SD/src/SD.h \
- C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/libraries/FS/src/FS.h \
- C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/libraries/SD/src/sd_defines.h \
- src/config.h .pio/libdeps/m5stack-cores3/ArduinoJson/src/ArduinoJson.h \
+ .pio/libdeps/m5stack-cores3/M5CoreS3/src/./utility/GC0308.h \
+ C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/tools/sdk/esp32s3/include/esp32-camera/driver/include/esp_camera.h \
+ C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/tools/sdk/esp32s3/include/driver/include/driver/ledc.h \
+ C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/tools/sdk/esp32s3/include/hal/include/hal/ledc_types.h \
+ C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/tools/sdk/esp32s3/include/esp32-camera/driver/include/sensor.h \
+ C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/tools/sdk/esp32s3/include/esp32-camera/conversions/include/img_converters.h \
+ C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/tools/sdk/esp32s3/include/esp32-camera/conversions/include/esp_jpg_decode.h \
+ .pio/libdeps/m5stack-cores3/M5CoreS3/src/./utility/LTR5XX.h \
+ src/M5Stack_RoboEyes.h src/config.h \
+ .pio/libdeps/m5stack-cores3/ArduinoJson/src/ArduinoJson.h \
  .pio/libdeps/m5stack-cores3/ArduinoJson/src/ArduinoJson.hpp \
  .pio/libdeps/m5stack-cores3/ArduinoJson/src/ArduinoJson/Configuration.hpp

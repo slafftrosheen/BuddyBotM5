@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>BuddyBot — My Robot Friend!</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="style.css?v=5.0">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/nipplejs/0.10.1/nipplejs.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <script>
+        window.onerror = function(msg, url, lineNo, columnNo, error) {
+            console.error(`JS ERR: ${msg} @ ${lineNo}:${columnNo}`, error);
+            return false;
+        };
+    </script>
+</head>
+<body>
+    <div id="app">
+        <!-- ═══ TOP BAR ═══ -->
+        <header class="top-bar">
+            <div class="top-left">
+                <span class="bot-name">🤖 BuddyBot</span>
+                <span class="bot-level" id="lvl-badge">LVL 1</span>
+            </div>
+            <div class="top-center">
+                <span class="status-dot" id="conn-dot">●</span>
+                <span class="status-text" id="conn-text">Connecting...</span>
+            </div>
+            <div class="top-right">
+                <span class="xp-bar-wrap">
+                    <span class="xp-bar" id="bar-xp" style="width:0%"></span>
+                </span>
+                <span class="xp-text" id="val-xp">0 XP</span>
+            </div>
+        </header>
+
+        <!-- ═══ ALERT BANNER ═══ -->
+        <div class="alert-banner" id="sys-alert" style="display:none;"></div>
+
+        <!-- ════════════════════════════════════════ -->
+        <!--             TAB CONTENT                  -->
+        <!-- ════════════════════════════════════════ -->
+
+        <!-- ── HOME TAB ── -->
+        <section class="tab-content active" id="tab-home">
+            <div class="card cam-card">
+                <div class="card-header">
+                    <span>📷 Camera</span>
+                    <span class="badge" id="cam-status">OFF</span>
+                </div>
+                <div class="cam-frame">
+                    <img id="cam-stream" src="" alt="Camera Offline" crossorigin="anonymous" />
+                    <canvas id="cam-overlay" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;"></canvas>
+                </div>
+            </div>
+
+            <div class="card vitals-card">
+                <div class="card-header"><span>💖 How I'm Doing</span></div>
+                <div class="vitals-grid">
+                    <div class="vital-item">
+                        <span class="vital-emoji">❤️</span>
+                        <div class="vital-bar-track"><div class="vital-bar hp" id="bar-hp" style="width:100%"></div></div>
+                        <span class="vital-label" id="val-hp">100%</span>
+                    </div>
+                    <div class="vital-item">
+                        <span class="vital-emoji">😊</span>
+                        <div class="vital-bar-track"><div class="vital-bar happy" id="bar-happy" style="width:100%"></div></div>
+                        <span class="vital-label" id="val-happy">100%</span>
+                    </div>
+                    <div class="vital-item">
+                        <span class="vital-emoji">🍔</span>
+                        <div class="vital-bar-track"><div class="vital-bar hunger" id="bar-hunger" style="width:100%"></div></div>
+                        <span class="vital-label" id="val-hunger">100%</span>
+                    </div>
+                    <div class="vital-item">
+                        <span class="vital-emoji">⚡</span>
+                        <div class="vital-bar-track"><div class="vital-bar energy" id="bar-energy" style="width:100%"></div></div>
+                        <span class="vital-label" id="val-energy">100%</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="quick-actions">
+                <button class="big-btn treat-btn" id="btn-treat">🍖 Feed Me!</button>
+                <button class="big-btn talk-btn" id="btn-voice-cmd">🎤 Talk to Me</button>
+            </div>
+        </section>
+
+        <!-- ── DRIVE TAB ── -->
+        <section class="tab-content" id="tab-drive">
+            <div class="card drive-card">
+                <div class="card-header">
+                    <span>🕹️ Drive Controls</span>
+                    <span class="badge" id="drive-readout">STOPPED</span>
+                </div>
+                <div class="speed-control">
+                    <label>Max Speed Level: <span id="speed-limit-val">3</span></label>
+                    <input type="range" id="speed-limit-slider" min="1" max="5" value="3">
+                </div>
+                <div class="drive-layout">
+                    <div id="joystick-zone"></div>
+                    <div class="throttle-gauge">
+                        <div class="throttle-fill" id="throttle-fill"></div>
+                        <span class="throttle-label" id="throttle-pct">0%</span>
+                    </div>
+                </div>
+            </div>
+            <div class="drive-buttons">
+                <button class="action-btn" id="btn-dance">💃 Dance!</button>
+                <button class="action-btn" id="btn-wander">🧭 Explore</button>
+            </div>
+        </section>
+
+        <!-- ── PLAY TAB ── -->
+        <section class="tab-content" id="tab-play">
+            <div class="card">
+                <div class="card-header"><span>🎵 Sound Board</span></div>
+                <div class="sound-grid">
+                    <button class="sfx-btn" data-sound="beep">🔊 Beep</button>
+                    <button class="sfx-btn" data-sound="siren">🚨 Siren</button>
+                    <button class="sfx-btn" data-sound="laugh">😂 Laugh</button>
+                    <button class="sfx-btn" data-sound="horn">📯 Horn</button>
+                    <button class="sfx-btn" data-sound="r2d2">🤖 R2D2</button>
+                    <button class="sfx-btn" data-sound="melody">🎵 Melody</button>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header"><span>🎮 Mini Games</span></div>
+                <div class="game-grid">
+                    <button class="game-btn" id="btn-simon">🧠 Simon Says</button>
+                    <button class="game-btn" id="btn-parrot">🦜 Parrot</button>
+                    <button class="game-btn" id="btn-color-game">🎨 Colors</button>
+                    <button class="game-btn" id="btn-hide-seek">📡 Hide & Seek</button>
+                    <button class="game-btn" id="btn-dj-open">🎛️ DJ Pad</button>
+                </div>
+            </div>
+
+            <!-- Simon Says Overlay -->
+            <div class="overlay" id="simon-pad" style="display:none;">
+                <div class="overlay-header">
+                    <span>🧠 Simon Says</span>
+                    <span class="badge" id="simon-score">SCORE: 0</span>
+                    <button class="close-btn" id="btn-close-simon">✖</button>
+                </div>
+                <div class="simon-status" id="simon-status">Watch carefully...</div>
+                <div class="simon-grid">
+                    <button class="simon-btn red" data-color="red"></button>
+                    <button class="simon-btn blue" data-color="blue"></button>
+                    <button class="simon-btn green" data-color="green"></button>
+                    <button class="simon-btn yellow" data-color="yellow"></button>
+                </div>
+            </div>
+
+            <!-- DJ Pad Overlay -->
+            <div class="overlay" id="dj-pad" style="display:none;">
+                <div class="overlay-header">
+                    <span>🎛️ DJ Beatbox</span>
+                    <button class="close-btn" id="btn-close-dj">✖</button>
+                </div>
+                <div class="dj-grid">
+                    <button class="dj-btn kick" data-sound="kick">KICK</button>
+                    <button class="dj-btn snare" data-sound="snare">SNARE</button>
+                    <button class="dj-btn hihat" data-sound="hihat">HIHAT</button>
+                    <button class="dj-btn scratch" data-sound="scratch">SCRATCH</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- ── BUDDY TAB ── -->
+        <section class="tab-content" id="tab-buddy">
+            <div class="card">
+                <div class="card-header"><span>😀 Mood Ring</span></div>
+                <div class="emotion-grid" id="emotion-grid">
+                    <button class="emo-btn active" data-emotion="0"><span>😐</span>Normal</button>
+                    <button class="emo-btn" data-emotion="1"><span>😄</span>Happy</button>
+                    <button class="emo-btn" data-emotion="2"><span>😠</span>Angry</button>
+                    <button class="emo-btn" data-emotion="3"><span>😢</span>Sad</button>
+                    <button class="emo-btn" data-emotion="4"><span>😴</span>Sleepy</button>
+                    <button class="emo-btn" data-emotion="5"><span>🤔</span>Doubtful</button>
+                    <button class="emo-btn" data-emotion="6"><span>🥶</span>Cold</button>
+                    <button class="emo-btn" data-emotion="7"><span>🥵</span>Hot</button>
+                    <button class="emo-btn" data-emotion="8"><span>🤩</span>Excited</button>
+                    <button class="emo-btn" data-emotion="9"><span>😱</span>Shocked</button>
+                    <button class="emo-btn" data-emotion="10"><span>😵</span>Dizzy</button>
+                    <button class="emo-btn" data-emotion="11"><span>👁️</span>Cyclops</button>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header"><span>🎨 Persona Customization</span></div>
+                <div class="config-grid">
+                    <div class="cfg-group">
+                        <label>Eye Width: <span id="val-eye-w">72</span></label>
+                        <input type="range" id="eye-w" min="10" max="150" value="72">
+                    </div>
+                    <div class="cfg-group">
+                        <label>Eye Height: <span id="val-eye-h">72</span></label>
+                        <input type="range" id="eye-h" min="10" max="150" value="72">
+                    </div>
+                    <div class="cfg-group">
+                        <label>FPS: <span id="val-eye-fps">20</span></label>
+                        <input type="range" id="eye-fps" min="10" max="60" value="20">
+                    </div>
+                    <div class="form-group">
+                        <label>Eye Color</label>
+                        <input type="color" id="eye-color-main" value="#ffffff">
+                    </div>
+                    <div class="form-group">
+                        <label>Eye Background</label>
+                        <input type="color" id="eye-color-bg" value="#000000">
+                    </div>
+                    <button class="save-btn" id="btn-save-persona">Save Appearance</button>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header"><span>📊 Sensors</span></div>
+                <div class="sensor-grid">
+                    <div class="sensor-item">
+                        <span class="sensor-icon">🔋</span>
+                        <span class="sensor-val" id="val-batt">--%</span>
+                        <div class="sensor-bar-track"><div class="sensor-bar" id="bar-batt" style="width:0%"></div></div>
+                    </div>
+                    <div class="sensor-item">
+                        <span class="sensor-icon">🌡️</span>
+                        <span class="sensor-val" id="val-temp">--°C</span>
+                        <div class="sensor-bar-track"><div class="sensor-bar" id="bar-temp" style="width:0%"></div></div>
+                    </div>
+                    <div class="sensor-item">
+                        <span class="sensor-icon">💧</span>
+                        <span class="sensor-val" id="val-hum">--%</span>
+                        <div class="sensor-bar-track"><div class="sensor-bar" id="bar-hum" style="width:0%"></div></div>
+                    </div>
+                    <div class="sensor-item">
+                        <span class="sensor-icon">🎈</span>
+                        <span class="sensor-val" id="val-pres">--hPa</span>
+                        <div class="sensor-bar-track"><div class="sensor-bar" id="bar-pres" style="width:0%"></div></div>
+                    </div>
+                    <div class="sensor-item">
+                        <span class="sensor-icon">🌿</span>
+                        <span class="sensor-val" id="val-gas">--KΩ</span>
+                        <div class="sensor-bar-track"><div class="sensor-bar" id="bar-gas" style="width:0%"></div></div>
+                    </div>
+                    <div class="sensor-item">
+                        <span class="sensor-icon">↔️</span>
+                        <span class="sensor-val" id="val-roll">--°</span>
+                        <div class="sensor-bar-track"><div class="sensor-bar imu" id="bar-roll" style="width:50%"></div></div>
+                    </div>
+                    <div class="sensor-item">
+                        <span class="sensor-icon">↕️</span>
+                        <span class="sensor-val" id="val-pitch">--°</span>
+                        <div class="sensor-bar-track"><div class="sensor-bar imu" id="bar-pitch" style="width:50%"></div></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ── HARDWARE TAB (Pro+) ── -->
+        <section class="tab-content" id="tab-hardware">
+            <div class="card">
+                <div class="card-header"><span>🔧 Servo Controls</span></div>
+                <div class="servo-section">
+                    <div class="servo-label">Steering</div>
+                    <div class="servo-grid" id="servo-drive-grid"></div>
+                </div>
+                <div class="servo-section">
+                    <div class="servo-label">Camera Gimbal</div>
+                    <div class="servo-grid" id="servo-gimbal-grid"></div>
+                </div>
+                <div class="servo-section">
+                    <div class="servo-label">Robot Arm</div>
+                    <div class="servo-grid" id="servo-arm-grid"></div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header"><span>🤏 Arm Moves</span></div>
+                <div class="macro-grid">
+                    <button class="action-btn" id="btn-macro-wave">👋 Wave</button>
+                    <button class="action-btn" id="btn-macro-highfive">🖐️ High Five</button>
+                    <button class="action-btn" id="btn-macro-grab">🤏 Grab</button>
+                    <button class="action-btn danger" id="btn-macro-stop">🛑 Stop Arm</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- ── AI LAB TAB (Max only) ── -->
+        <section class="tab-content" id="tab-ai">
+            <div class="card">
+                <div class="card-header"><span>🧠 AI Powers</span></div>
+                <div class="ai-grid">
+                    <button class="ai-btn" id="btn-auto-nav">🛣️ Auto-Navigate</button>
+                    <button class="ai-btn" id="btn-face-track">👤 Face Follow</button>
+                    <button class="ai-btn" id="btn-sentry-patrol">👮 Sentry Patrol</button>
+                    <button class="ai-btn" id="btn-sleep-cycle">💤 Sleep Timer</button>
+                    <button class="ai-btn" id="btn-color-track">🎾 Fetch Color</button>
+                    <button class="ai-btn" id="btn-qr-scan">📷 QR Scanner</button>
+                    <button class="ai-btn special" id="btn-yolo-vision">👁️ YOLO Vision</button>
+                    <button class="ai-btn" id="btn-guard-mode">🛡️ Guard Mode</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- ── SETTINGS TAB ── -->
+        <section class="tab-content" id="tab-settings">
+            <div class="card">
+                <div class="card-header"><span>📡 Network</span></div>
+                <div class="settings-form">
+                    <div class="form-row">
+                        <label>WiFi SSID 1</label>
+                        <input type="text" id="cfg-ssid1" placeholder="STARLINK.TAK">
+                    </div>
+                    <div class="form-row">
+                        <label>WiFi Pass 1</label>
+                        <input type="password" id="cfg-pass1" placeholder="●●●●●●">
+                    </div>
+                    <div class="form-row">
+                        <label>Camera IP</label>
+                        <input type="text" id="cfg-camip" placeholder="192.168.1.xxx">
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header"><span>🏎️ Motors</span></div>
+                <div class="settings-form">
+                    <div class="form-row toggle-row">
+                        <label>Invert Left Motor</label>
+                        <button class="toggle-btn" id="cfg-invert-l">OFF</button>
+                    </div>
+                    <div class="form-row toggle-row">
+                        <label>Invert Right Motor</label>
+                        <button class="toggle-btn" id="cfg-invert-r">OFF</button>
+                    </div>
+                    <div class="form-row">
+                        <label>Trim Left <span id="trim-left-val">0</span></label>
+                        <input type="range" id="trim-left" min="-20" max="20" value="0">
+                    </div>
+                    <div class="form-row">
+                        <label>Trim Right <span id="trim-right-val">0</span></label>
+                        <input type="range" id="trim-right" min="-20" max="20" value="0">
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header"><span>🔑 API Keys</span></div>
+                <div class="settings-form">
+                    <div class="form-row">
+                        <label>Gemini API Key</label>
+                        <input type="password" id="cfg-gemini-key" placeholder="AIza...">
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header"><span>🎨 Appearance</span></div>
+                <div class="settings-form">
+                    <div class="form-row">
+                        <label>Blink Rate</label>
+                        <input type="range" id="blink-rate" min="500" max="8000" value="3000">
+                    </div>
+                    <div class="form-row toggle-row">
+                        <label>Camera Flip</label>
+                        <button class="toggle-btn" id="cam-flip">OFF</button>
+                    </div>
+                    <div class="form-row toggle-row">
+                        <label>Camera Mirror</label>
+                        <button class="toggle-btn" id="cam-mirror">OFF</button>
+                    </div>
+                    <div class="form-row">
+                        <label>Speaker Volume</label>
+                        <input type="range" id="cfg-volume" min="0" max="255" value="128">
+                    </div>
+                </div>
+            </div>
+
+            <div class="settings-actions">
+                <button class="big-btn save-btn" id="btn-save-config">💾 Save Everything</button>
+                <button class="big-btn danger-btn" id="btn-reboot">🔄 Reboot Robot</button>
+            </div>
+
+            <div class="footer-info">
+                <span id="heap-info">Memory: --</span> · 
+                <span id="wifi-rssi">Signal: --</span> · 
+                <span id="uptime-info">Up: --</span> · 
+                <span id="build-tier">Tier: --</span>
+                <br>BuddyBot v4.0
+            </div>
+        </section>
+
+        <!-- ═══ BOTTOM TAB BAR ═══ -->
+        <nav class="tab-bar">
+            <button class="tab-btn active" data-tab="tab-home">
+                <span class="tab-icon">🏠</span>
+                <span class="tab-label">Home</span>
+            </button>
+            <button class="tab-btn" data-tab="tab-drive">
+                <span class="tab-icon">🕹️</span>
+                <span class="tab-label">Drive</span>
+            </button>
+            <button class="tab-btn" data-tab="tab-play">
+                <span class="tab-icon">🎮</span>
+                <span class="tab-label">Play</span>
+            </button>
+            <button class="tab-btn" data-tab="tab-buddy">
+                <span class="tab-icon">🤖</span>
+                <span class="tab-label">Buddy</span>
+            </button>
+            <button class="tab-btn tier-pro" data-tab="tab-hardware">
+                <span class="tab-icon">🔧</span>
+                <span class="tab-label">HW</span>
+            </button>
+            <button class="tab-btn tier-max" data-tab="tab-ai">
+                <span class="tab-icon">🧠</span>
+                <span class="tab-label">AI</span>
+            </button>
+            <button class="tab-btn" data-tab="tab-settings">
+                <span class="tab-icon">⚙️</span>
+                <span class="tab-label">Setup</span>
+            </button>
+        </nav>
+    </div>
+
+    <!-- Hidden canvas for CV -->
+    <canvas id="cv-canvas" width="320" height="240" style="display:none;"></canvas>
+
+    <script src="app.js?v=4.0"></script>
+    <script src="drive.js?v=4.0"></script>
+    <script src="play.js?v=4.0"></script>
+    <script src="buddy.js?v=4.0"></script>
+    <script src="hardware.js?v=4.0"></script>
+    <script src="ai.js?v=4.0"></script>
+    <script src="settings.js?v=4.0"></script>
+</body>
+</html>

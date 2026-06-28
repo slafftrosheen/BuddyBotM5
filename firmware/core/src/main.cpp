@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <SD.h>
-#include <M5Unified.h>
+#include <LittleFS.h>
+#include <M5CoreS3.h>
 #include <WiFi.h>
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
@@ -56,12 +57,10 @@ Adafruit_BME680 bme;
 const uint8_t ROLLER_M1_ADDR = 0x64;
 const uint8_t ROLLER_M2_ADDR = 0x65;
 
-#if BUDDY_TIER >= 1  // Pro+ only
 // ═══════════════════════════════════════
 // 8-Channel Servo Hat I2C Protocol
 // ═══════════════════════════════════════
 const uint8_t SERVO_HAT_ADDR = 0x38;
-#endif
 
 bool motorsInitialized = false;
 
@@ -106,7 +105,6 @@ void setMotorSpeeds(int speedPctM1, int speedPctM2) {
     rollerSetSpeed(ROLLER_M2_ADDR, rpm100_m2);
 }
 
-#if BUDDY_TIER >= 1  // Pro+ only
 // ═══════════════════════════════════════
 // 8-Servo Hat Control
 // ═══════════════════════════════════════
@@ -118,7 +116,6 @@ void setServoAngle(uint8_t channel, uint8_t angle) {
     Wire.write(angle);
     Wire.endTransmission();
 }
-#endif
 
 // ═══════════════════════════════════════
 // Color helpers
@@ -138,46 +135,48 @@ uint16_t hexToColor565(const char* hex) {
 // WiFi Init (from config)
 // ═══════════════════════════════════════
 void initWiFi() {
-    M5.Lcd.fillScreen(BLACK);
-    M5.Lcd.setCursor(0, 0);
-    M5.Lcd.setTextSize(2);
-    M5.Lcd.println("Connecting to WiFi...");
+    CoreS3.Display.fillScreen(TFT_BLACK);
+    CoreS3.Display.setCursor(0, 0);
+    CoreS3.Display.setTextSize(2);
+    CoreS3.Display.println("Connecting to WiFi...");
 
     WiFi.setHostname("buddy");
+    WiFi.disconnect(true, true);
+    delay(100);
     WiFi.mode(WIFI_STA);
     
     if (strlen(buddyConfig.wifi_ssid1) > 0) {
         wifiMulti.addAP(buddyConfig.wifi_ssid1, buddyConfig.wifi_pass1);
-        M5.Lcd.printf("  SSID1: %s\n", buddyConfig.wifi_ssid1);
+        CoreS3.Display.printf("  SSID1: %s\n", buddyConfig.wifi_ssid1);
     }
     if (strlen(buddyConfig.wifi_ssid2) > 0) {
         wifiMulti.addAP(buddyConfig.wifi_ssid2, buddyConfig.wifi_pass2);
-        M5.Lcd.printf("  SSID2: %s\n", buddyConfig.wifi_ssid2);
+        CoreS3.Display.printf("  SSID2: %s\n", buddyConfig.wifi_ssid2);
     }
     if (strlen(buddyConfig.wifi_ssid3) > 0) {
         wifiMulti.addAP(buddyConfig.wifi_ssid3, buddyConfig.wifi_pass3);
-        M5.Lcd.printf("  SSID3: %s\n", buddyConfig.wifi_ssid3);
+        CoreS3.Display.printf("  SSID3: %s\n", buddyConfig.wifi_ssid3);
     }
 
     unsigned long startAttempt = millis();
     while (wifiMulti.run() != WL_CONNECTED) {
         delay(100);
-        M5.Lcd.print(".");
+        CoreS3.Display.print(".");
         if (millis() - startAttempt > 15000) {
             // Captive portal fallback
-            M5.Lcd.println("\nNo WiFi! Starting AP...");
+            CoreS3.Display.println("\nNo WiFi! Starting AP...");
             WiFi.mode(WIFI_AP);
             WiFi.softAP("BuddyBot-Setup", "buddy123");
-            M5.Lcd.print("AP IP: ");
-            M5.Lcd.println(WiFi.softAPIP());
+            CoreS3.Display.print("AP IP: ");
+            CoreS3.Display.println(WiFi.softAPIP());
             return;
         }
     }
 
-    M5.Lcd.println("\nConnected!");
+    CoreS3.Display.println("\nConnected!");
     
     if (MDNS.begin("buddy")) {
-        M5.Lcd.println("MDNS: buddy.local");
+        CoreS3.Display.println("MDNS: buddy.local");
     }
 }
 
@@ -186,7 +185,7 @@ void initWiFi() {
 // ═══════════════════════════════════════
 void initServer() {
     // Serve Web UI from SD Card
-    server.serveStatic("/", SD, "/").setDefaultFile("index.html").setCacheControl("max-age=0, no-cache, no-store, must-revalidate");
+    server.serveStatic("/", LittleFS, "/").setDefaultFile("index.html").setCacheControl("max-age=0, no-cache, no-store, must-revalidate");
 
     // ── File Upload Handler ──
     server.on("/api/upload", HTTP_POST, [](AsyncWebServerRequest *request){
@@ -199,8 +198,10 @@ void initServer() {
         static File uploadFile;
         if (!index) {
             String path = "/" + filename;
-            if (SD.exists(path)) SD.remove(path);
-            uploadFile = SD.open(path, FILE_WRITE);
+            bool isMedia = path.endsWith(".jpg") || path.endsWith(".png") || path.endsWith(".wav");
+            fs::FS &targetFS = isMedia ? (fs::FS&)SD : (fs::FS&)LittleFS;
+            if (targetFS.exists(path)) targetFS.remove(path);
+            uploadFile = targetFS.open(path, FILE_WRITE);
             if (uploadFile) {
                 request->_tempObject = (void*)1;
             } else {
@@ -230,9 +231,11 @@ void initServer() {
         doc["roll"] = imu_roll;
         doc["heap"] = ESP.getFreeHeap();
         doc["rssi"] = WiFi.RSSI();
-        doc["battery"] = M5.Power.getBatteryLevel();
+        doc["battery"] = CoreS3.Power.getBatteryLevel();
         doc["uptime"] = millis() / 1000;
-        doc["buildTier"] = buddyConfig.buildTier;
+        doc["hasServo"] = buddyConfig.hasServo;
+        doc["hasCam"] = buddyConfig.hasCam;
+        doc["hasPi"] = buddyConfig.hasPi;
         String response;
         serializeJson(doc, response);
         request->send(200, "application/json", response);
@@ -277,11 +280,6 @@ void initServer() {
                 heading_locked = false;
             }
 
-#if BUDDY_TIER >= 1
-            int steer_pulse = map(target_turn, -100, 100, 0, 180);
-            setServoAngle(0, steer_pulse);
-#endif
-
             request->send(200, "text/plain", "OK");
             lastActivityTime = millis();
         } else {
@@ -289,7 +287,6 @@ void initServer() {
         }
     });
 
-#if BUDDY_TIER >= 1  // Pro+ only
     // ── POST /api/servo ──
     server.on("/api/servo", HTTP_POST, [](AsyncWebServerRequest *request){
     }, NULL, [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total){
@@ -304,17 +301,18 @@ void initServer() {
             request->send(400, "text/plain", "Bad Request");
         }
     });
-#endif
 
     // ── POST /api/persona ──
     server.on("/api/persona", HTTP_POST, [](AsyncWebServerRequest *request){
+        request->send(200, "application/json", "{\"status\":\"ok\"}");
     }, NULL, [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total){
         JsonDocument doc;
-        if (!deserializeJson(doc, data, len)) {
-            if (doc.containsKey("emotion")) {
+        DeserializationError error = deserializeJson(doc, data, len);
+        if (!error) {
+            if (!doc["emotion"].isNull()) {
                 persona.setEmotion((EmotionState)(doc["emotion"].as<int>()));
             }
-            if (doc.containsKey("talking")) {
+            if (!doc["talking"].isNull()) {
                 if (doc["talking"].as<bool>()) {
                     persona.startTalking();
                 } else {
@@ -396,6 +394,27 @@ void initServer() {
         request->send(400, "text/plain", "Invalid Action");
     });
 
+
+    // ── GET /api/ls (Debug) ──
+    server.on("/api/ls", HTTP_GET, [](AsyncWebServerRequest *request){
+        String out = "[";
+        File root = SD.open("/");
+        if (!root) {
+            request->send(500, "application/json", "{\"error\":\"Failed to open directory\"}");
+            return;
+        }
+        File file = root.openNextFile();
+        bool first = true;
+        while(file){
+            if (!first) out += ",";
+            out += "{\"name\":\"" + String(file.name()) + "\",\"size\":" + String(file.size()) + ",\"dir\":" + String(file.isDirectory() ? "true" : "false") + "}";
+            first = false;
+            file = root.openNextFile();
+        }
+        out += "]";
+        request->send(200, "application/json", out);
+    });
+
     // ── POST /api/reboot ──
     server.on("/api/reboot", HTTP_POST, [](AsyncWebServerRequest *request){
         request->send(200, "text/plain", "Rebooting...");
@@ -404,7 +423,7 @@ void initServer() {
     });
 
     server.begin();
-    M5.Lcd.println("Web Server Started");
+    CoreS3.Display.println("Web Server Started");
 
     ArduinoOTA.setHostname("BuddyBot-Core");
     ArduinoOTA.begin();
@@ -416,57 +435,76 @@ void initServer() {
 void setup() {
     auto cfg = M5.config();
     cfg.internal_mic = false;
-    M5.begin(cfg);
+    CoreS3.begin(cfg); // Use CoreS3.begin() instead of M5.begin() to properly initialize AW9523 on CoreS3! // Use CoreS3.begin() instead of M5.begin() to properly initialize AW9523 on CoreS3!
 
-    int sda = 2, scl = 1; // Default CoreS3 Port A
-    int spi_sck = -1, spi_miso = -1, spi_mosi = -1, spi_cs = 4;
-    
-    auto board = M5.getBoard();
-    if (board == m5::board_t::board_M5StickCPlus || 
-        board == m5::board_t::board_M5StickCPlus2 ||
-        board == m5::board_t::board_M5StickC) {
-        sda = 32;
-        scl = 33;
-    } else if (board == m5::board_t::board_M5StackCoreS3) {
-        spi_sck = 36; spi_miso = 35; spi_mosi = 37; spi_cs = 4;
-    } else if (board == m5::board_t::board_M5StackCore2) {
-        spi_sck = 18; spi_miso = 38; spi_mosi = 23; spi_cs = 4;
-    } else if (board == m5::board_t::board_M5Stack) {
-        spi_sck = 18; spi_miso = 19; spi_mosi = 23; spi_cs = 4;
-    }
-
+    int sda = 2, scl = 1; // CoreS3 Port A (I2C)
     Wire.begin(sda, scl);
 
-    // Initialize global SPI for SD card if supported
-    if (spi_sck != -1) {
-        SPI.begin(spi_sck, spi_miso, spi_mosi, spi_cs);
-    }
+    Wire.beginTransmission(0x38);
+    buddyConfig.hasServo = (Wire.endTransmission() == 0);
 
     // Mount SD Card (needed for config)
-    // CoreS3 uses AW9523 to power the SD card, which takes time to stabilize after M5.begin()
-    delay(2000); // WAIT FOR POWER TO FULLY STABILIZE. This prevents the SD card from entering a bad state on boot.
+    // CoreS3 uses AW9523 to power the SD card. M5.begin() initializes SPI, so we just pass it to SD.begin()
+    delay(2000); // WAIT FOR POWER TO FULLY STABILIZE.
     int sd_retries = 0;
     bool sd_mounted = false;
     while (sd_retries < 10) {
         SD.end(); // Clean up any failed state
         delay(100);
-        sd_mounted = SD.begin(spi_cs, SPI, 15000000); // 15MHz for stability
+        sd_mounted = SD.begin(4, SPI, 15000000); // CS=4 for CoreS3 SD
+
         if (sd_mounted) break;
         delay(400);
         sd_retries++;
     }
 
-    if (!sd_mounted) {
-        M5.Lcd.setTextColor(RED);
-        M5.Lcd.println("SD Card: NOT MOUNTED!");
-        M5.Lcd.setTextColor(WHITE);
+
+    // Initialize LittleFS for Web UI
+    if (!LittleFS.begin(true)) {
+        CoreS3.Display.println("LittleFS Mount FAILED");
     } else {
-        M5.Lcd.setTextColor(GREEN);
-        M5.Lcd.println("SD Card: MOUNTED OK");
-        M5.Lcd.setTextColor(WHITE);
-        if (!SD.exists("/sprites")) SD.mkdir("/sprites");
-        if (!SD.exists("/sounds")) SD.mkdir("/sounds");
+        CoreS3.Display.println("LittleFS: MOUNTED OK");
     }
+
+    if (!sd_mounted) {
+
+        CoreS3.Display.setTextColor(TFT_RED);
+        CoreS3.Display.println("SD Card: NOT MOUNTED!");
+        CoreS3.Display.setTextColor(TFT_WHITE);
+    } else {
+        CoreS3.Display.setTextColor(TFT_GREEN);
+        CoreS3.Display.println("SD Card: MOUNTED OK");
+        CoreS3.Display.setTextColor(TFT_WHITE);
+
+        if (!SD.exists("/sounds")) SD.mkdir("/sounds");
+
+        // --- MIGRATION LOGIC: SD to LittleFS ---
+        if (SD.exists("/index.html")) {
+            CoreS3.Display.println("Migrating UI to LittleFS...");
+            const char* files_to_copy[] = {"/index.html", "/app.js", "/style.css", "/hardware.js", "/buddy.js", "/play.js", "/settings.js", "/drive.js", "/ai.js"};
+            for (int i=0; i<9; i++) {
+                if (SD.exists(files_to_copy[i])) {
+                    File src = SD.open(files_to_copy[i], FILE_READ);
+                    LittleFS.remove(files_to_copy[i]);
+                    File dst = LittleFS.open(files_to_copy[i], FILE_WRITE);
+                    if (src && dst) {
+                        size_t len = src.size();
+                        uint8_t buf[512];
+                        while(len) {
+                            size_t toRead = len > 512 ? 512 : len;
+                            src.read(buf, toRead);
+                            dst.write(buf, toRead);
+                            len -= toRead;
+                        }
+                    }
+                    if (src) src.close();
+                    if (dst) dst.close();
+                }
+            }
+            CoreS3.Display.println("Migration complete!");
+        }
+    }
+
 
     // Load config from SD (or create defaults)
     configLoad();
@@ -482,31 +520,29 @@ void setup() {
 
     // Initialize BME680
     if (!bme.begin(0x76)) {
-        M5.Lcd.println("BME680: NOT FOUND");
+        CoreS3.Display.println("BME680: NOT FOUND");
     } else {
         bme.setTemperatureOversampling(BME680_OS_8X);
         bme.setHumidityOversampling(BME680_OS_2X);
         bme.setPressureOversampling(BME680_OS_4X);
         bme.setIIRFilterSize(BME680_FILTER_SIZE_3);
         bme.setGasHeater(320, 150);
-        M5.Lcd.println("BME680: OK");
+        CoreS3.Display.println("BME680: OK");
     }
 
     // Initialize RollerCAN motors
     initMotors();
-    M5.Lcd.println("Motors: INIT");
+    CoreS3.Display.println("Motors: INIT");
 
-#if BUDDY_TIER >= 1
     // Initialize all servos to stop (90)
     for (int i = 0; i < 8; i++) {
         setServoAngle(i, 90);
     }
-    M5.Lcd.println("Servos: STOP");
-#endif
+    CoreS3.Display.println("Servos: STOP");
 
-    M5.Lcd.printf("Build Tier: %s\n", 
-        buddyConfig.buildTier == 0 ? "LITE" : 
-        buddyConfig.buildTier == 1 ? "PRO" : "MAX");
+    CoreS3.Display.printf("HW: Core%s%s\n", 
+        buddyConfig.hasServo ? "+Servo" : "",
+        buddyConfig.hasPi ? "+Pi" : "");
 
     initServer();
 
@@ -519,13 +555,17 @@ void setup() {
 // Loop
 // ═══════════════════════════════════════
 void loop() {
-    M5.update();
+    if (needsConfigSave) {
+        configSave();
+        needsConfigSave = false;
+    }
+    CoreS3.update();
     ArduinoOTA.handle();
 
     // IMU processing
     float ax, ay, az, gx, gy, gz;
-    M5.Imu.getAccel(&ax, &ay, &az);
-    M5.Imu.getGyro(&gx, &gy, &gz);
+    CoreS3.Imu.getAccel(&ax, &ay, &az);
+    CoreS3.Imu.getGyro(&gx, &gy, &gz);
     
     imu_pitch = atan2(ax, sqrt(ay * ay + az * az)) * 180.0 / PI;
     imu_roll = atan2(ay, az) * 180.0 / PI;
@@ -556,6 +596,11 @@ void loop() {
         float error = yaw_target - imu_yaw;
         float p_gain = 1.2;
         float correction = error * p_gain;
+        
+        // If reversing, flip the correction direction
+        if (target_speed < 0) {
+            correction = -correction;
+        }
         
         m1_req -= correction;
         m2_req += correction;
@@ -605,7 +650,7 @@ void loop() {
         int quirk = random(0, 3);
         if (quirk == 0) {
             playSoundAsync("sneeze");
-            persona.setEmotion(EMO_CURIOUS);
+            persona.setEmotion(EMO_DOUBTFUL);
         } else if (quirk == 1) {
             playSoundAsync("whistle");
             persona.setEmotion(EMO_HAPPY);
@@ -618,8 +663,8 @@ void loop() {
     }
 
     // Touch: cycle emotions on tap
-    if (M5.Touch.getCount() > 0) {
-        auto t = M5.Touch.getDetail();
+    if (CoreS3.Touch.getCount() > 0) {
+        auto t = CoreS3.Touch.getDetail();
         if (t.wasClicked()) {
             static int currentEmotionIdx = 0;
             currentEmotionIdx = (currentEmotionIdx + 1) % 12;

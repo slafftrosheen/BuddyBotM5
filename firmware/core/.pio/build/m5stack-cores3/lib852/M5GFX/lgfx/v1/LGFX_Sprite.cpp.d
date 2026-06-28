@@ -2,7 +2,7 @@
  .pio/libdeps/m5stack-cores3/M5GFX/src/lgfx/v1/LGFX_Sprite.cpp \
  .pio/libdeps/m5stack-cores3/M5GFX/src/lgfx/v1/LGFX_Sprite.hpp \
  C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/tools/sdk/esp32s3/include/newlib/platform_include/assert.h \
- C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/tools/sdk/esp32s3/qio_qspi/include/sdkconfig.h \
+ C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/tools/sdk/esp32s3/qio_opi/include/sdkconfig.h \
  .pio/libdeps/m5stack-cores3/M5GFX/src/lgfx/v1/LGFXBase.hpp \
  C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/cores/esp32/Print.h \
  C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/cores/esp32/WString.h \

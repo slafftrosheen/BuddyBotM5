@@ -1,15 +1,12 @@
 #include <Arduino.h>
 #include <WiFi.h>
-#include <WiFiMulti.h>
 #include <ESPmDNS.h>
 #include "esp_camera.h"
 #include <ArduinoOTA.h>
 #include "VoiceAssistant.h"
-WiFiMulti wifiMulti;
-// WiFi credentials — change these for your network
-#ifndef WIFI_PASS
-#define WIFI_PASS "changeme"
-#endif
+// WiFi credentials — hardcoded for this build
+#define WIFI_SSID "STARLINK.TAK"      // Change this to your WiFi SSID
+#define WIFI_PASS "Slaff181188"  // Change this to your WiFi password
 
 // ATOM S3R CAM Pin Definition
 #define PWDN_GPIO_NUM     -1
@@ -61,7 +58,7 @@ static camera_config_t camera_config = {
     .ledc_timer   = LEDC_TIMER_0,
     .ledc_channel = LEDC_CHANNEL_0,
 
-    .pixel_format = PIXFORMAT_JPEG,
+    .pixel_format = PIXFORMAT_RGB565,
     .frame_size   = FRAMESIZE_QVGA,
     .jpeg_quality  = 12,
     .fb_count      = 2,
@@ -91,31 +88,28 @@ void setup() {
 
     WiFi.setHostname("buddycam");
     WiFi.mode(WIFI_STA);
-    wifiMulti.addAP("STARLINK.TAK", WIFI_PASS);
-    wifiMulti.addAP("TAK", WIFI_PASS);
-    wifiMulti.addAP("BuddyBot-Setup", "buddy123");
+    
+    // Hardcoded WiFi credentials - change these for your network
+    const char* ssid = WIFI_SSID;
+    const char* password = WIFI_PASS;
+    
+    WiFi.begin(ssid, password);
     
     int wifiAttempts = 0;
-    while (wifiMulti.run() != WL_CONNECTED) {
+    while (WiFi.status() != WL_CONNECTED) {
         delay(500);
         Serial.print(".");
         wifiAttempts++;
         if (wifiAttempts > 30) { // 15 seconds
-            Serial.println("\nWiFi connection failed! Starting SoftAP...");
-            WiFi.disconnect(true);
-            delay(100);
-            WiFi.mode(WIFI_AP);
-            delay(100);
-            WiFi.softAP("BuddyCam-Setup", "buddy123");
-            break;
+            Serial.println("\nWiFi connection failed! Restarting in 3 seconds...");
+            delay(3000);
+            esp_restart();
         }
     }
     Serial.println("");
-    if (WiFi.getMode() == WIFI_AP) {
-        Serial.println("SoftAP started: BuddyCam-Setup");
-    } else {
-        Serial.println("WiFi connected");
-    }
+    Serial.println("WiFi connected");
+    Serial.print("IP Address: ");
+    Serial.println(WiFi.localIP());
 
     server.begin();
 
@@ -154,16 +148,6 @@ void loop() {
             client.stop();
         }
     }
-
-    // WiFi auto-reconnect
-    static unsigned long lastWiFiCheck = 0;
-    if (millis() - lastWiFiCheck > 15000) {
-        lastWiFiCheck = millis();
-        if (WiFi.getMode() != WIFI_AP && WiFi.status() != WL_CONNECTED) {
-            Serial.println("[WiFi] Reconnecting...");
-            wifiMulti.run();
-        }
-    }
 }
 
 // used to image stream
@@ -186,25 +170,47 @@ static void jpegStream(WiFiClient* client) {
         
         fb = esp_camera_fb_get();
         if (fb) {
+            if(fb->format != PIXFORMAT_JPEG){
+                bool jpeg_converted = frame2jpg(fb, 80, &out_jpg, &out_jpg_len);
+                esp_camera_fb_return(fb);
+                fb = NULL;
+                if(!jpeg_converted){
+                    Serial.println("JPEG compression failed");
+                    continue;
+                }
+            } else {
+                out_jpg_len = fb->len;
+                out_jpg = fb->buf;
+            }
+
             client->print(_STREAM_BOUNDARY);
-            client->printf(_STREAM_PART, fb->len);
+            client->printf(_STREAM_PART, out_jpg_len);
             
-            int32_t to_sends    = fb->len;
+            int32_t to_sends    = out_jpg_len;
             int32_t now_sends   = 0;
-            uint8_t* out_buf    = fb->buf;
+            uint8_t* out_buf    = out_jpg;
             uint32_t packet_len = 8 * 1024;
             
             while (to_sends > 0) {
                 now_sends = to_sends > packet_len ? packet_len : to_sends;
                 if (client->write(out_buf, now_sends) == 0) {
+                    if(!fb && out_jpg){
+                        free(out_jpg);
+                        out_jpg = NULL;
+                    }
                     goto client_exit;
                 }
                 out_buf += now_sends;
                 to_sends -= now_sends;
             }
 
-            esp_camera_fb_return(fb);
-            fb = NULL;
+            if(!fb && out_jpg){
+                free(out_jpg);
+                out_jpg = NULL;
+            } else if (fb) {
+                esp_camera_fb_return(fb);
+                fb = NULL;
+            }
         } else {
             Serial.println("Camera capture failed");
             delay(100);
@@ -215,6 +221,9 @@ client_exit:
     if (fb) {
         esp_camera_fb_return(fb);
         fb = NULL;
+    } else if (out_jpg) {
+        free(out_jpg);
+        out_jpg = NULL;
     }
     client->stop();
     Serial.printf("Image stream end\r\n");

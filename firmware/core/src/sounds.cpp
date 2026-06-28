@@ -1,6 +1,6 @@
 #include "sounds.h"
 #include <SD.h>
-#include <M5Unified.h>
+#include <M5CoreS3.h>
 
 // ═══════════════════════════════════════
 // WAV File Playback from SD Card
@@ -93,9 +93,9 @@ void playWavFile(const char* path) {
         size_t bytesRead = f.read(wavPlayBuf, toRead);
         if (bytesRead == 0) break;
 
-        M5.Speaker.playRaw((int16_t*)wavPlayBuf, bytesRead / 2, sampleRate, false, 1);
+        CoreS3.Speaker.playRaw((int16_t*)wavPlayBuf, bytesRead / 2, sampleRate, false, 1);
         // Wait for this chunk to finish before loading next
-        while (M5.Speaker.isPlaying()) {
+        while (CoreS3.Speaker.isPlaying()) {
             delay(1);
         }
 
@@ -110,64 +110,64 @@ void playWavFile(const char* path) {
 // ═══════════════════════════════════════
 static void playToneFallback(const char* name) {
     if (strcmp(name, "beep") == 0) {
-        M5.Speaker.tone(1000, 200);
+        CoreS3.Speaker.tone(1000, 200);
     } else if (strcmp(name, "siren") == 0) {
         for (int i = 0; i < 3; i++) {
-            M5.Speaker.tone(800, 150); delay(200);
-            M5.Speaker.tone(1200, 150); delay(200);
+            CoreS3.Speaker.tone(800, 150); delay(200);
+            CoreS3.Speaker.tone(1200, 150); delay(200);
         }
     } else if (strcmp(name, "laugh") == 0) {
         int notes[] = {500, 600, 700, 600, 500, 700, 800};
         for (int i = 0; i < 7; i++) {
-            M5.Speaker.tone(notes[i], 80); delay(100);
+            CoreS3.Speaker.tone(notes[i], 80); delay(100);
         }
     } else if (strcmp(name, "horn") == 0) {
-        M5.Speaker.tone(300, 500);
+        CoreS3.Speaker.tone(300, 500);
     } else if (strcmp(name, "r2d2") == 0) {
         int freqs[] = {2000, 1500, 2500, 1800, 2200, 1000, 3000, 1200};
         for (int i = 0; i < 8; i++) {
-            M5.Speaker.tone(freqs[i], 60); delay(80);
+            CoreS3.Speaker.tone(freqs[i], 60); delay(80);
         }
     } else if (strcmp(name, "melody") == 0 || strcmp(name, "levelup") == 0) {
         int notes[] = {262, 294, 330, 349, 392, 440, 494, 523};
         for (int i = 0; i < 8; i++) {
-            M5.Speaker.tone(notes[i], 150); delay(180);
+            CoreS3.Speaker.tone(notes[i], 150); delay(180);
         }
     } else if (strcmp(name, "purr") == 0) {
         for (int i = 0; i < 5; i++) {
-            M5.Speaker.tone(150, 100); delay(120);
-            M5.Speaker.tone(120, 100); delay(120);
+            CoreS3.Speaker.tone(150, 100); delay(120);
+            CoreS3.Speaker.tone(120, 100); delay(120);
         }
     } else if (strcmp(name, "sneeze") == 0) {
-        M5.Speaker.tone(2000, 50); delay(100);
-        M5.Speaker.tone(3000, 150);
+        CoreS3.Speaker.tone(2000, 50); delay(100);
+        CoreS3.Speaker.tone(3000, 150);
     } else if (strcmp(name, "whistle") == 0) {
-        M5.Speaker.tone(1500, 200); delay(250);
-        M5.Speaker.tone(2000, 400);
+        CoreS3.Speaker.tone(1500, 200); delay(250);
+        CoreS3.Speaker.tone(2000, 400);
     } else if (strcmp(name, "snore") == 0) {
-        M5.Speaker.tone(200, 800); delay(900);
-        M5.Speaker.tone(400, 400);
+        CoreS3.Speaker.tone(200, 800); delay(900);
+        CoreS3.Speaker.tone(400, 400);
     } else if (strcmp(name, "eat") == 0) {
         for (int i = 0; i < 4; i++) {
-            M5.Speaker.tone(800 + (i*100), 50); delay(60);
+            CoreS3.Speaker.tone(800 + (i*100), 50); delay(60);
         }
     } else if (strcmp(name, "startup") == 0) {
-        M5.Speaker.tone(1000, 100); delay(120);
-        M5.Speaker.tone(1500, 100); delay(120);
-        M5.Speaker.tone(2000, 150);
+        CoreS3.Speaker.tone(1000, 100); delay(120);
+        CoreS3.Speaker.tone(1500, 100); delay(120);
+        CoreS3.Speaker.tone(2000, 150);
     } else if (strcmp(name, "kick") == 0) {
-        M5.Speaker.tone(80, 100);
+        CoreS3.Speaker.tone(80, 100);
     } else if (strcmp(name, "snare") == 0) {
-        M5.Speaker.tone(300, 50);
+        CoreS3.Speaker.tone(300, 50);
     } else if (strcmp(name, "hihat") == 0) {
-        M5.Speaker.tone(6000, 30);
+        CoreS3.Speaker.tone(6000, 30);
     } else if (strcmp(name, "scratch") == 0) {
         for (int i = 0; i < 4; i++) {
-            M5.Speaker.tone(1000 + random(2000), 30); delay(40);
+            CoreS3.Speaker.tone(1000 + random(2000), 30); delay(40);
         }
     } else {
         // Unknown sound — generic beep
-        M5.Speaker.tone(800, 100);
+        CoreS3.Speaker.tone(800, 100);
     }
 }
 
@@ -200,15 +200,15 @@ static void soundTaskFunc(void* param) {
 void playSoundAsync(const char* name) {
     // Kill previous task if still running
     if (soundTaskHandle != nullptr) {
-        vTaskDelete(soundTaskHandle);
-        soundTaskHandle = nullptr;
+        // Task is already running. Do not kill it as it locks I2S.
+        return;
     }
     strlcpy(asyncSoundName, name, sizeof(asyncSoundName));
     xTaskCreatePinnedToCore(soundTaskFunc, "sound", 8192, (void*)asyncSoundName, 1, &soundTaskHandle, 0);
 }
 
 void stopSound() {
-    M5.Speaker.stop();
+    CoreS3.Speaker.stop();
     if (soundTaskHandle != nullptr) {
         vTaskDelete(soundTaskHandle);
         soundTaskHandle = nullptr;

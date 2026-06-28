@@ -1,23 +1,23 @@
 #ifndef BUDDY_PERSONA_H
 #define BUDDY_PERSONA_H
 
-#include <M5Unified.h>
-#include <SD.h>
+#include <M5CoreS3.h>
+#include "M5Stack_RoboEyes.h"
 
 // Persona Emotion States
 enum EmotionState {
-    EMO_CHILL = 0,
+    EMO_NORMAL = 0,
     EMO_HAPPY,
-    EMO_GRUMPY,
-    EMO_SLEEPY,
-    EMO_EXCITED,
+    EMO_ANGRY,
     EMO_SAD,
-    EMO_CURIOUS,
-    EMO_ALERT,
-    EMO_LOVE,
+    EMO_SLEEPY,
+    EMO_DOUBTFUL,
+    EMO_COLD,
+    EMO_HOT,
+    EMO_EXCITED,
     EMO_SHOCKED,
     EMO_DIZZY,
-    EMO_COOL
+    EMO_CYCLOPS
 };
 
 class BuddyPersona {
@@ -27,13 +27,13 @@ public:
     // Initialize the persona engine
     void begin();
     
-    // Main update loop to handle blinking and animations
+    // Main update loop to handle animations
     void update();
     
     // Set the current emotion
     void setEmotion(EmotionState newEmotion);
     
-    // Start talking animation (mouth moving)
+    // Start talking animation
     void startTalking();
     
     // Stop talking animation
@@ -41,23 +41,10 @@ public:
 
 private:
     EmotionState currentEmotion;
-    EmotionState targetEmotion;
-    
+    RoboEyes roboEyes;
     bool isTalking;
-    bool isBlinking;
-    
-    unsigned long lastBlinkTime;
-    unsigned long blinkDuration;
-    unsigned long nextBlinkDelay;
-    
     unsigned long lastTalkToggleTime;
-    bool talkMouthOpen;
-    
-    // Draw the current sprite based on state
-    void drawSprite();
-    
-    // Get the base filename for the current emotion
-    String getEmotionFilename(EmotionState emo);
+    bool talkingState;
 };
 
 // Global instance
