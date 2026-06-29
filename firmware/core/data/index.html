@@ -20,6 +20,7 @@
         <!-- ═══ TOP BAR ═══ -->
         <header class="top-bar">
             <div class="top-left">
+                <button id="btn-menu" class="hamburger-btn">☰</button>
                 <span class="bot-name">🤖 BuddyBot</span>
                 <span class="bot-level" id="lvl-badge">LVL 1</span>
             </div>
@@ -37,6 +38,29 @@
 
         <!-- ═══ ALERT BANNER ═══ -->
         <div class="alert-banner" id="sys-alert" style="display:none;"></div>
+
+        <!-- ═══ NAVIGATION OVERLAY ═══ -->
+        <div id="nav-overlay" class="nav-overlay" style="display: none;">
+            <div class="nav-menu">
+                <button class="nav-close" id="btn-menu-close">✕</button>
+                <h2>Menu</h2>
+                <button class="tab-btn active" data-tab="tab-home">
+                    <span class="tab-icon">🏠</span> <span class="tab-label">Home</span>
+                </button>
+                <button class="tab-btn" data-tab="tab-play">
+                    <span class="tab-icon">🎮</span> <span class="tab-label">Play</span>
+                </button>
+                <button class="tab-btn" data-tab="tab-buddy">
+                    <span class="tab-icon">🤖</span> <span class="tab-label">Buddy</span>
+                </button>
+                <button class="tab-btn tier-max" data-tab="tab-ai">
+                    <span class="tab-icon">🧠</span> <span class="tab-label">AI</span>
+                </button>
+                <button class="tab-btn" data-tab="tab-settings">
+                    <span class="tab-icon">⚙️</span> <span class="tab-label">Setup</span>
+                </button>
+            </div>
+        </div>
 
         <!-- ════════════════════════════════════════ -->
         <!--             TAB CONTENT                  -->
@@ -467,32 +491,6 @@
                 <br>BuddyBot v4.0
             </div>
         </section>
-
-        <!-- ═══ BOTTOM TAB BAR ═══ -->
-        <nav class="tab-bar">
-            <button class="tab-btn active" data-tab="tab-home">
-                <span class="tab-icon">🏠</span>
-                <span class="tab-label">Home</span>
-            </button>
-            
-            <button class="tab-btn" data-tab="tab-play">
-                <span class="tab-icon">🎮</span>
-                <span class="tab-label">Play</span>
-            </button>
-            <button class="tab-btn" data-tab="tab-buddy">
-                <span class="tab-icon">🤖</span>
-                <span class="tab-label">Buddy</span>
-            </button>
-            
-            <button class="tab-btn tier-max" data-tab="tab-ai">
-                <span class="tab-icon">🧠</span>
-                <span class="tab-label">AI</span>
-            </button>
-            <button class="tab-btn" data-tab="tab-settings">
-                <span class="tab-icon">⚙️</span>
-                <span class="tab-label">Setup</span>
-            </button>
-        </nav>
     </div>
 
     <!-- Hidden canvas for CV -->

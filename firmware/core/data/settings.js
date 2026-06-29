@@ -227,10 +227,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // Save Button
     document.getElementById('btn-save-config')?.addEventListener('click', () => {
         const payload = {
-            wifi_ssid1: document.getElementById('cfg-ssid1').value,
-            camIp: document.getElementById('cfg-camip').value,
-            piIp: document.getElementById('cfg-piip') ? document.getElementById('cfg-piip').value : '',
-            
             hasCam: document.getElementById('cfg-has-cam') ? getToggleState(document.getElementById('cfg-has-cam')) : false,
             hasServo: document.getElementById('cfg-has-servo') ? getToggleState(document.getElementById('cfg-has-servo')) : false,
             hasPi: document.getElementById('cfg-has-pi') ? getToggleState(document.getElementById('cfg-has-pi')) : false,
@@ -248,6 +244,15 @@ document.addEventListener('DOMContentLoaded', () => {
             camMirror: getToggleState(document.getElementById('cam-mirror')),
             speakerVolume: parseInt(document.getElementById('cfg-volume').value)
         };
+
+        const ssid1 = document.getElementById('cfg-ssid1').value;
+        if (ssid1 && ssid1.trim() !== '') payload.wifi_ssid1 = ssid1.trim();
+
+        const camIp = document.getElementById('cfg-camip').value;
+        if (camIp && camIp.trim() !== '') payload.camIp = camIp.trim();
+
+        const piIpEl = document.getElementById('cfg-piip');
+        if (piIpEl && piIpEl.value.trim() !== '') payload.piIp = piIpEl.value.trim();
 
         const pass1 = document.getElementById('cfg-pass1').value;
         if (pass1 && pass1 !== '' && !pass1.includes('●●●')) {

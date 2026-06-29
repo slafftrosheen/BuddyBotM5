@@ -1,4 +1,232 @@
-/* --- hardware.js --- */
+// ═══════════════════════════════════════════════════════
+// BUDDYBOT M5 — CORE APP CONTROLLER
+// Handles config, connection, and tab switching
+// ═══════════════════════════════════════════════════════
+
+const state = {
+    connected: false,
+    config: {
+        hasServo: false,
+        hasCam: false,
+        hasPi: false,
+        motorTrimL: 0,
+        motorTrimR: 0,
+        servoInvert: [],
+        camFlip: false,
+        camMirror: false
+    }
+};
+
+function showAlert(msg, color = 'var(--accent-pink)') {
+    const banner = document.getElementById('sys-alert');
+    banner.textContent = msg;
+    banner.style.background = color;
+    banner.style.display = 'block';
+    
+    // Reset animation
+    banner.style.animation = 'none';
+    banner.offsetHeight; /* trigger reflow */
+    banner.style.animation = null;
+    
+    setTimeout(() => { banner.style.display = 'none'; }, 3000);
+}
+
+
+// ── RPG SYSTEM ──
+window.awardXP = window.addXP = function(amount) {
+    fetch('/api/xp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ add: amount })
+    })
+    .then(res => res.json())
+    .then(data => {
+        const lvlBadge = document.getElementById('lvl-badge');
+        const oldLevel = parseInt(lvlBadge.textContent.replace('LVL ', '')) || 1;
+        
+        lvlBadge.textContent = `LVL ${data.level}`;
+        document.getElementById('val-xp').textContent = `${data.xp} XP`;
+        document.getElementById('bar-xp').style.width = `${data.xp % 100}%`;
+
+        if (data.level > oldLevel) {
+            showAlert(`🎉 LEVEL UP! You reached LVL ${data.level}!`, 'var(--accent-green)');
+        }
+    }).catch(()=>{});
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+    
+    // ── 1. LOAD CONFIG ──
+    fetch('/api/config')
+        .then(res => res.json())
+        .then(data => {
+            state.config = data;
+            applyTierVisibility();
+            populateSettings();
+            
+            // Start Cam Stream with Auto-Reconnect Logic
+            {
+                const img = document.getElementById('cam-stream');
+                const camHost = (data.camIp && data.camIp.trim() !== '') ? data.camIp : '192.168.8.189';
+                const streamUrl = `http://${camHost}/stream`;
+                let retryTimeout;
+                
+                const connectCam = () => {
+                    img.src = streamUrl;
+                    document.getElementById('cam-status').textContent = 'CONNECTING...';
+                    document.getElementById('cam-status').style.background = 'var(--neon-amber)';
+                    document.getElementById('cam-status').style.color = '#000';
+                };
+
+                img.onload = () => {
+                    clearTimeout(retryTimeout);
+                    document.getElementById('cam-status').textContent = 'LIVE';
+                    document.getElementById('cam-status').style.background = 'var(--accent-green)';
+                    document.getElementById('cam-status').style.color = '#000';
+                };
+
+                img.onerror = () => {
+                    document.getElementById('cam-status').textContent = 'OFFLINE';
+                    document.getElementById('cam-status').style.background = '#ff3b3b';
+                    document.getElementById('cam-status').style.color = '#fff';
+                    // Clear previous source to prevent browser memory leak loops
+                    img.src = "";
+                    // Auto-reconnect after 3 seconds
+                    clearTimeout(retryTimeout);
+                    retryTimeout = setTimeout(connectCam, 3000);
+                };
+                
+                if (data.camFlip) img.style.transform += ' scaleY(-1)';
+                if (data.camMirror) img.style.transform += ' scaleX(-1)';
+                
+                // Initial connection
+                connectCam();
+            }
+        })
+        .catch(err => console.error("Failed to load config", err));
+
+    function applyTierVisibility() {
+        // Show/hide based on detected components
+        if (state.config.hasServo) {
+            document.querySelectorAll('.tier-pro').forEach(el => el.style.setProperty('display', 'flex', 'important'));
+        }
+        if (state.config.hasPi) {
+            document.querySelectorAll('.tier-max').forEach(el => el.style.setProperty('display', 'flex', 'important'));
+        }
+        
+        // Build a dynamic hardware string
+        let hw = [];
+        hw.push("Core");
+        if (state.config.hasServo) hw.push("Servo");
+        if (state.config.hasPi) hw.push("Pi");
+        document.getElementById('build-tier').textContent = `HW: ${hw.join(' + ')}`;
+    }
+
+    // ── 2. TAB NAVIGATION ──
+    const tabs = document.querySelectorAll('.tab-btn');
+    const contents = document.querySelectorAll('.tab-content');
+
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            // Remove active from all
+            tabs.forEach(t => t.classList.remove('active'));
+            contents.forEach(c => c.classList.remove('active'));
+            
+            // Add active to clicked
+            tab.classList.add('active');
+            const target = document.getElementById(tab.dataset.tab);
+            if (target) target.classList.add('active');
+            
+            // Close the overlay if it's open
+            const overlay = document.getElementById('nav-overlay');
+            if (overlay) overlay.style.display = 'none';
+
+            // Play subtle UI sound if available
+            try {
+                const audio = new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA');
+                audio.volume = 0.2;
+                audio.play().catch(()=>{});
+            } catch(e){}
+        });
+    });
+
+    // ── Hamburger Menu Logic ──
+    const btnMenu = document.getElementById('btn-menu');
+    const btnMenuClose = document.getElementById('btn-menu-close');
+    const navOverlay = document.getElementById('nav-overlay');
+
+    if (btnMenu && navOverlay) {
+        btnMenu.addEventListener('click', () => {
+            navOverlay.style.display = 'flex';
+        });
+    }
+    if (btnMenuClose && navOverlay) {
+        btnMenuClose.addEventListener('click', () => {
+            navOverlay.style.display = 'none';
+        });
+    }
+
+    // ── 3. TELEMETRY POLLING ──
+    setInterval(() => {
+        fetch('/api/telemetry')
+            .then(res => res.json())
+            .then(data => {
+                if (!state.connected) {
+                    state.connected = true;
+                    document.getElementById('conn-dot').className = 'status-dot online';
+                    document.getElementById('conn-text').textContent = 'Online';
+                }
+                
+                // Update Sensors (Buddy Tab)
+                if (data.level !== undefined) {
+                    document.getElementById('lvl-badge').textContent = `LVL ${data.level}`;
+                    document.getElementById('val-xp').textContent = `${data.xp} XP`;
+                    document.getElementById('bar-xp').style.width = `${data.xp % 100}%`;
+                }
+                if (data.battery !== undefined) {
+                    document.getElementById('val-batt').textContent = `${data.battery}%`;
+                    document.getElementById('bar-batt').style.width = `${data.battery}%`;
+                }
+                document.getElementById('val-temp').textContent = `${data.temp.toFixed(1)}°C`;
+                document.getElementById('bar-temp').style.width = `${Math.min(100, data.temp * 2)}%`;
+                
+                document.getElementById('val-hum').textContent = `${data.hum.toFixed(0)}%`;
+                document.getElementById('bar-hum').style.width = `${data.hum}%`;
+                
+                document.getElementById('val-pres').textContent = `${data.pres.toFixed(0)}hPa`;
+                
+                document.getElementById('val-gas').textContent = `${(data.gas / 1000).toFixed(1)}KΩ`;
+                document.getElementById('bar-gas').style.width = `${Math.min(100, data.gas / 5000)}%`;
+                
+                document.getElementById('val-roll').textContent = `${data.roll.toFixed(0)}°`;
+                document.getElementById('bar-roll').style.width = `${50 + (data.roll / 180 * 50)}%`;
+                
+                document.getElementById('val-pitch').textContent = `${data.pitch.toFixed(0)}°`;
+                document.getElementById('bar-pitch').style.width = `${50 + (data.pitch / 180 * 50)}%`;
+
+                // Update Footer
+                document.getElementById('heap-info').textContent = `Mem: ${(data.heap / 1024).toFixed(0)}KB`;
+                document.getElementById('wifi-rssi').textContent = `Signal: ${data.rssi}dBm`;
+                
+                // Uptime
+                const uptimeEl = document.getElementById('uptime-info');
+                if (uptimeEl && data.uptime) {
+                    const m = Math.floor(data.uptime / 60);
+                    const s = data.uptime % 60;
+                    uptimeEl.textContent = `Up: ${m}m${s}s`;
+                }
+            })
+            .catch(() => {
+                if (state.connected) {
+                    state.connected = false;
+                    document.getElementById('conn-dot').className = 'status-dot offline';
+                    document.getElementById('conn-text').textContent = 'Offline';
+                    showAlert('Connection Lost', '#ff3b3b');
+                }
+            });
+    }, 3000);
+
+});
 // ═══════════════════════════════════════════════════════
 // BUDDYBOT M5 — HARDWARE (SERVO/MACRO) CONTROLLER
 // ═══════════════════════════════════════════════════════
@@ -144,411 +372,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
 });
-
-/* --- settings.js --- */
-// ═══════════════════════════════════════════════════════
-// BUDDYBOT M5 — SETTINGS & CONFIGURATION
-// ═══════════════════════════════════════════════════════
-
-// Exported for app.js to call after loading config
-
-function rgb565ToHex(rgb565) {
-    if (rgb565 === undefined) return '#000000';
-    let r = (rgb565 >> 11) & 0x1F;
-    let g = (rgb565 >> 5) & 0x3F;
-    let b = rgb565 & 0x1F;
-    r = (r << 3) | (r >> 2);
-    g = (g << 2) | (g >> 4);
-    b = (b << 3) | (b >> 2);
-    const toHex = (n) => n.toString(16).padStart(2, '0');
-    return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
-}
-
-function hexToRgb565(hex) {
-    hex = hex.replace('#', '');
-    let r = parseInt(hex.substring(0, 2), 16) || 0;
-    let g = parseInt(hex.substring(2, 4), 16) || 0;
-    let b = parseInt(hex.substring(4, 6), 16) || 0;
-    return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
-}
-
-window.populateSettings = function() {
-    if (!window.state || !window.state.config) return;
-    
-    const cfg = window.state.config;
-    
-    // Network
-    document.getElementById('cfg-ssid1').value = cfg.wifi_ssid1 || '';
-    document.getElementById('cfg-camip').value = cfg.camIp || '';
-    if (document.getElementById('cfg-piip')) document.getElementById('cfg-piip').value = cfg.piIp || '';
-    
-    // Hardware State
-    if (document.getElementById('cfg-has-cam')) setToggleState(document.getElementById('cfg-has-cam'), cfg.hasCam);
-    if (document.getElementById('cfg-has-servo')) setToggleState(document.getElementById('cfg-has-servo'), cfg.hasServo);
-    if (document.getElementById('cfg-has-pi')) setToggleState(document.getElementById('cfg-has-pi'), cfg.hasPi);
-    
-    // API Keys
-    document.getElementById('cfg-gemini-key').value = cfg.geminiApiKey || '';
-    
-    // Servos
-    if (cfg.servoInvert) {
-        for (let i = 0; i < 8; i++) {
-            if (document.getElementById('cfg-inv-s' + i)) {
-                setToggleState(document.getElementById('cfg-inv-s' + i), cfg.servoInvert[i]);
-            }
-        }
-    }
-    
-    // Motors
-    document.getElementById('trim-left').value = cfg.motorTrimL || 0;
-    document.getElementById('trim-left-val').textContent = cfg.motorTrimL || 0;
-    document.getElementById('trim-right').value = cfg.motorTrimR || 0;
-    document.getElementById('trim-right-val').textContent = cfg.motorTrimR || 0;
-    
-    setToggleState(document.getElementById('cfg-invert-l'), cfg.motorInvertL);
-    setToggleState(document.getElementById('cfg-invert-r'), cfg.motorInvertR);
-    
-    // Persona
-    document.getElementById('blink-rate').value = cfg.blinkRate || 3000;
-    
-    // New Persona configs
-    if (document.getElementById('eye-w')) {
-        document.getElementById('eye-w').value = cfg.eyeSizeX || 72;
-        document.getElementById('val-eye-w').textContent = cfg.eyeSizeX || 72;
-        document.getElementById('eye-h').value = cfg.eyeSizeY || 72;
-        document.getElementById('val-eye-h').textContent = cfg.eyeSizeY || 72;
-        document.getElementById('eye-fps').value = cfg.eyeFps || 60;
-        document.getElementById('val-eye-fps').textContent = cfg.eyeFps || 60;
-        document.getElementById('eye-color-main').value = rgb565ToHex(cfg.eyeColorMain);
-        document.getElementById('eye-color-bg').value = rgb565ToHex(cfg.eyeColorBg);
-    }
-    
-    // Misc
-    setToggleState(document.getElementById('cam-flip'), cfg.camFlip);
-    setToggleState(document.getElementById('cam-mirror'), cfg.camMirror);
-    document.getElementById('cfg-volume').value = cfg.speakerVolume || 128;
-};
-
-function setToggleState(btn, state) {
-    if (!btn) return;
-    if (state) {
-        btn.classList.add('active');
-        btn.textContent = 'ON';
-    } else {
-        btn.classList.remove('active');
-        btn.textContent = 'OFF';
-    }
-}
-
-function getToggleState(btn) {
-    return btn ? btn.classList.contains('active') : false;
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-
-    // ═══════════════════════════════════════
-    // TUNING CONFIG (Phase 5)
-    // ═══════════════════════════════════════
-    const cfgImpact = document.getElementById('cfg-impact');
-    const valImpact = document.getElementById('val-impact');
-    if (cfgImpact) {
-        cfgImpact.addEventListener('input', e => valImpact.innerText = parseFloat(e.target.value).toFixed(1));
-    }
-
-    const cfgFireTemp = document.getElementById('cfg-fire-temp');
-    const valFireTemp = document.getElementById('val-fire-temp');
-    if (cfgFireTemp) {
-        cfgFireTemp.addEventListener('input', e => valFireTemp.innerText = parseFloat(e.target.value).toFixed(1));
-    }
-
-    const cfgCvEdge = document.getElementById('cfg-cv-edge');
-    const valCvEdge = document.getElementById('val-cv-edge');
-    if (cfgCvEdge) {
-        cfgCvEdge.addEventListener('input', e => valCvEdge.innerText = e.target.value);
-    }
-
-    const cfgCvArea = document.getElementById('cfg-cv-area');
-    const valCvArea = document.getElementById('val-cv-area');
-    if (cfgCvArea) {
-        cfgCvArea.addEventListener('input', e => valCvArea.innerText = e.target.value);
-    }
-
-    // Load CV Tuning from Pi
-    function loadCvTuning() {
-        const piHost = (state.config.piIp && state.config.piIp.trim() !== '') ? state.config.piIp : '192.168.8.175';
-        fetch(`http://${piHost}:8000/api/cv/tune`)
-            .then(res => res.json())
-            .then(data => {
-                if (cfgCvEdge && data.fall_edge_density_threshold) {
-                    cfgCvEdge.value = data.fall_edge_density_threshold;
-                    valCvEdge.innerText = data.fall_edge_density_threshold;
-                }
-                if (cfgCvArea && data.track_min_area) {
-                    cfgCvArea.value = data.track_min_area;
-                    valCvArea.innerText = data.track_min_area;
-                }
-            })
-            .catch(err => console.log('CV Tuning load failed:', err));
-    }
-    
-    // Save Tuning
-    document.getElementById('btn-save-tuning')?.addEventListener('click', () => {
-        // 1. Save ESP32 Hardware Tuning
-        if (cfgImpact) state.config.impactThresholdG = parseFloat(cfgImpact.value);
-        if (cfgFireTemp) state.config.fireTempThreshold = parseFloat(cfgFireTemp.value);
-        
-        fetch('/api/config', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(state.config)
-        }).then(() => {
-            if (window.showAlert) window.showAlert('ESP32 Tuning Saved!', 'var(--accent-green)');
-        });
-
-        // 2. Save Pi CV Tuning
-        const piHost = (state.config.piIp && state.config.piIp.trim() !== '') ? state.config.piIp : '192.168.8.175';
-        fetch(`http://${piHost}:8000/api/cv/tune`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                fall_edge_density_threshold: parseInt(cfgCvEdge.value),
-                track_min_area: parseInt(cfgCvArea.value)
-            })
-        }).then(() => {
-            if (window.showAlert) window.showAlert('CV Tuning Saved!', 'var(--accent-blue)');
-        }).catch(err => console.log('CV Tuning save failed:', err));
-    });
-
-
-    // Range Sliders display update (Persona)
-    document.getElementById('eye-w')?.addEventListener('input', (e) => {
-        document.getElementById('val-eye-w').textContent = e.target.value;
-    });
-    document.getElementById('eye-h')?.addEventListener('input', (e) => {
-        document.getElementById('val-eye-h').textContent = e.target.value;
-    });
-    document.getElementById('eye-fps')?.addEventListener('input', (e) => {
-        document.getElementById('val-eye-fps').textContent = e.target.value;
-    });
-
-    // Save Persona Button
-    document.getElementById('btn-save-persona')?.addEventListener('click', () => {
-        const payload = {
-            eyeSizeX: parseInt(document.getElementById('eye-w').value),
-            eyeSizeY: parseInt(document.getElementById('eye-h').value),
-            eyeFps: parseInt(document.getElementById('eye-fps').value),
-            eyeColorMain: hexToRgb565(document.getElementById('eye-color-main').value),
-            eyeColorBg: hexToRgb565(document.getElementById('eye-color-bg').value)
-        };
-
-        fetch('/api/config', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(payload)
-        }).then(res => {
-            if(res.ok) {
-                if (typeof showAlert === 'function') showAlert('Appearance Saved!', '#32CD32');
-            }
-        });
-    });
-
-    // Range Sliders display update
-    document.getElementById('trim-left')?.addEventListener('input', (e) => {
-        document.getElementById('trim-left-val').textContent = e.target.value;
-    });
-    document.getElementById('trim-right')?.addEventListener('input', (e) => {
-        document.getElementById('trim-right-val').textContent = e.target.value;
-    });
-
-    // Toggle Buttons
-    document.querySelectorAll('.toggle-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            const el = e.currentTarget;
-            if (el.classList.contains('active')) {
-                setToggleState(el, false);
-            } else {
-                setToggleState(el, true);
-            }
-        });
-    });
-
-    // Save Button
-    document.getElementById('btn-save-config')?.addEventListener('click', () => {
-        const payload = {
-            wifi_ssid1: document.getElementById('cfg-ssid1').value,
-            camIp: document.getElementById('cfg-camip').value,
-            piIp: document.getElementById('cfg-piip') ? document.getElementById('cfg-piip').value : '',
-            
-            hasCam: document.getElementById('cfg-has-cam') ? getToggleState(document.getElementById('cfg-has-cam')) : false,
-            hasServo: document.getElementById('cfg-has-servo') ? getToggleState(document.getElementById('cfg-has-servo')) : false,
-            hasPi: document.getElementById('cfg-has-pi') ? getToggleState(document.getElementById('cfg-has-pi')) : false,
-            
-            servoInvert: Array.from({length: 8}, (_, i) => getToggleState(document.getElementById('cfg-inv-s' + i))),
-            motorTrimL: parseInt(document.getElementById('trim-left').value),
-            motorTrimR: parseInt(document.getElementById('trim-right').value),
-            motorInvertL: getToggleState(document.getElementById('cfg-invert-l')),
-            motorInvertR: getToggleState(document.getElementById('cfg-invert-r')),
-            
-            blinkRate: parseInt(document.getElementById('blink-rate').value),
-            personaType: parseInt(document.getElementById('cfg-persona-type') ? document.getElementById('cfg-persona-type').value : 0),
-            
-            camFlip: getToggleState(document.getElementById('cam-flip')),
-            camMirror: getToggleState(document.getElementById('cam-mirror')),
-            speakerVolume: parseInt(document.getElementById('cfg-volume').value)
-        };
-
-        const pass1 = document.getElementById('cfg-pass1').value;
-        if (pass1 && pass1 !== '' && !pass1.includes('●●●')) {
-            payload.wifi_pass1 = pass1;
-        }
-
-        const geminiKey = document.getElementById('cfg-gemini-key').value;
-        if (geminiKey && geminiKey !== '' && !geminiKey.includes('****')) {
-            payload.geminiApiKey = geminiKey;
-        }
-
-        fetch('/api/config', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        })
-        .then(res => {
-            if (res.ok) {
-                if (window.showAlert) window.showAlert('CONFIG SAVED', 'var(--accent-green)');
-                // Update local state
-                if (window.state) window.state.config = { ...window.state.config, ...payload };
-            } else {
-                if (window.showAlert) window.showAlert('SAVE FAILED', 'var(--accent-pink)');
-            }
-        })
-        .catch(() => {
-            if (window.showAlert) window.showAlert('NETWORK ERROR', 'var(--accent-pink)');
-        });
-    });
-
-    // Reboot Button
-    document.getElementById('btn-reboot')?.addEventListener('click', () => {
-        if (confirm('Are you sure you want to reboot BuddyBot?')) {
-            fetch('/api/reboot', { method: 'POST' }).catch(()=>{});
-            if (window.showAlert) window.showAlert('REBOOTING...', 'var(--accent-blue)');
-            setTimeout(() => { location.reload(); }, 3000);
-        }
-    });
-
-    // Live Persona Preview
-    ['blink-rate'].forEach(id => {
-        document.getElementById(id)?.addEventListener('change', () => {
-            // Wait for slider to be released before sending
-            fetch('/api/persona', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    blinkRate: parseInt(document.getElementById('blink-rate').value)
-                })
-            }).catch(()=>{});
-        });
-    });
-
-});
-
-/* --- buddy.js --- */
-// ═══════════════════════════════════════════════════════
-// BUDDYBOT M5 — BUDDY (VITALS/PERSONA) CONTROLLER
-// ═══════════════════════════════════════════════════════
-
-// Global Gamification State
-window.buddyState = {
-    xp: parseInt(localStorage.getItem('buddy_xp')) || 0,
-    level: 1,
-    hp: 100,
-    hunger: 100,
-    energy: 100,
-    happiness: 100
-};
-
-// Global Functions for other modules
-window.refillVitals = function(stat, amount) {
-    window.buddyState[stat] = Math.min(100, window.buddyState[stat] + amount);
-    updateVitalsUI();
-};
-
-
-function updateVitalsUI() {
-    ['hp', 'hunger', 'energy', 'happiness'].forEach(stat => {
-        const val = window.buddyState[stat];
-        const bar = document.getElementById(`bar-${stat === 'happiness' ? 'happy' : stat}`);
-        const text = document.getElementById(`val-${stat === 'happiness' ? 'happy' : stat}`);
-        
-        if (bar) bar.style.width = `${val}%`;
-        if (text) text.textContent = `${Math.round(val)}%`;
-        
-        // Color shifts if low
-        if (bar) {
-            if (val < 25) bar.style.background = 'var(--accent-pink)';
-            else bar.style.background = ''; // Use CSS default
-        }
-    });
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-    
-    updateVitalsUI();
-
-    // ── Emotion Picker ──
-    const emoGrid = document.getElementById('emotion-grid');
-    if (emoGrid) {
-        emoGrid.addEventListener('click', (e) => {
-            const btn = e.target.closest('.emo-btn');
-            if (!btn) return;
-
-            const emotion = parseInt(btn.dataset.emotion);
-            
-            // Update active state in UI
-            document.querySelectorAll('.emo-btn').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-
-            // Send to robot
-            fetch('/api/persona', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ emotion: emotion })
-            }).catch(()=>{});
-        });
-    }
-
-    // ── Vitals Decay Loop ──
-    setInterval(() => {
-        // Very slow decay (kids shouldn't feel stressed)
-        window.buddyState.hunger = Math.max(0, window.buddyState.hunger - 0.5);
-        window.buddyState.energy = Math.max(0, window.buddyState.energy - 0.2);
-        
-        // Happiness drops if hungry/tired
-        if (window.buddyState.hunger < 30 || window.buddyState.energy < 30) {
-            window.buddyState.happiness = Math.max(0, window.buddyState.happiness - 1);
-        } else {
-            window.buddyState.happiness = Math.min(100, window.buddyState.happiness + 0.5);
-        }
-
-        // HP drops if everything is terrible
-        if (window.buddyState.happiness < 10) {
-            window.buddyState.hp = Math.max(0, window.buddyState.hp - 1);
-        } else {
-            window.buddyState.hp = Math.min(100, window.buddyState.hp + 2);
-        }
-        
-        updateVitalsUI();
-        
-        // Auto-change emotion if things are bad
-        if (window.buddyState.hunger < 20) {
-            const currentEmoBtn = document.querySelector('.emo-btn.active');
-            if (currentEmoBtn && parseInt(currentEmoBtn.dataset.emotion) !== 5) {
-                document.querySelector('.emo-btn[data-emotion="5"]').click(); // Sad
-            }
-        }
-    }, 10000); // Check every 10s
-});
-
-/* --- drive.js --- */
 // ═══════════════════════════════════════════════════════
 // BUDDYBOT M5 — DRIVE CONTROLLER
 // ═══════════════════════════════════════════════════════
@@ -787,8 +610,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 });
-
-/* --- play.js --- */
 // ═══════════════════════════════════════════════════════
 // BUDDYBOT M5 — PLAY & GAMES CONTROLLER
 // ═══════════════════════════════════════════════════════
@@ -1044,8 +865,101 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
 });
+// ═══════════════════════════════════════════════════════
+// BUDDYBOT M5 — BUDDY (VITALS/PERSONA) CONTROLLER
+// ═══════════════════════════════════════════════════════
 
-/* --- ai.js --- */
+// Global Gamification State
+window.buddyState = {
+    xp: parseInt(localStorage.getItem('buddy_xp')) || 0,
+    level: 1,
+    hp: 100,
+    hunger: 100,
+    energy: 100,
+    happiness: 100
+};
+
+// Global Functions for other modules
+window.refillVitals = function(stat, amount) {
+    window.buddyState[stat] = Math.min(100, window.buddyState[stat] + amount);
+    updateVitalsUI();
+};
+
+
+function updateVitalsUI() {
+    ['hp', 'hunger', 'energy', 'happiness'].forEach(stat => {
+        const val = window.buddyState[stat];
+        const bar = document.getElementById(`bar-${stat === 'happiness' ? 'happy' : stat}`);
+        const text = document.getElementById(`val-${stat === 'happiness' ? 'happy' : stat}`);
+        
+        if (bar) bar.style.width = `${val}%`;
+        if (text) text.textContent = `${Math.round(val)}%`;
+        
+        // Color shifts if low
+        if (bar) {
+            if (val < 25) bar.style.background = 'var(--accent-pink)';
+            else bar.style.background = ''; // Use CSS default
+        }
+    });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    
+    updateVitalsUI();
+
+    // ── Emotion Picker ──
+    const emoGrid = document.getElementById('emotion-grid');
+    if (emoGrid) {
+        emoGrid.addEventListener('click', (e) => {
+            const btn = e.target.closest('.emo-btn');
+            if (!btn) return;
+
+            const emotion = parseInt(btn.dataset.emotion);
+            
+            // Update active state in UI
+            document.querySelectorAll('.emo-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+
+            // Send to robot
+            fetch('/api/persona', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ emotion: emotion })
+            }).catch(()=>{});
+        });
+    }
+
+    // ── Vitals Decay Loop ──
+    setInterval(() => {
+        // Very slow decay (kids shouldn't feel stressed)
+        window.buddyState.hunger = Math.max(0, window.buddyState.hunger - 0.5);
+        window.buddyState.energy = Math.max(0, window.buddyState.energy - 0.2);
+        
+        // Happiness drops if hungry/tired
+        if (window.buddyState.hunger < 30 || window.buddyState.energy < 30) {
+            window.buddyState.happiness = Math.max(0, window.buddyState.happiness - 1);
+        } else {
+            window.buddyState.happiness = Math.min(100, window.buddyState.happiness + 0.5);
+        }
+
+        // HP drops if everything is terrible
+        if (window.buddyState.happiness < 10) {
+            window.buddyState.hp = Math.max(0, window.buddyState.hp - 1);
+        } else {
+            window.buddyState.hp = Math.min(100, window.buddyState.hp + 2);
+        }
+        
+        updateVitalsUI();
+        
+        // Auto-change emotion if things are bad
+        if (window.buddyState.hunger < 20) {
+            const currentEmoBtn = document.querySelector('.emo-btn.active');
+            if (currentEmoBtn && parseInt(currentEmoBtn.dataset.emotion) !== 5) {
+                document.querySelector('.emo-btn[data-emotion="5"]').click(); // Sad
+            }
+        }
+    }, 10000); // Check every 10s
+});
 // ═══════════════════════════════════════════════════════
 // BUDDYBOT M5 — AI LAB CONTROLLER (Max Tier)
 // v4.0 — Real implementations for Sleep, Guard, Auto-Nav
@@ -1454,215 +1368,312 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
 });
-
-/* --- app.js --- */
 // ═══════════════════════════════════════════════════════
-// BUDDYBOT M5 — CORE APP CONTROLLER
-// Handles config, connection, and tab switching
+// BUDDYBOT M5 — SETTINGS & CONFIGURATION
 // ═══════════════════════════════════════════════════════
 
-const state = {
-    connected: false,
-    config: {
-        hasServo: false,
-        hasCam: false,
-        hasPi: false,
-        motorTrimL: 0,
-        motorTrimR: 0,
-        servoInvert: [],
-        camFlip: false,
-        camMirror: false
-    }
-};
+// Exported for app.js to call after loading config
 
-function showAlert(msg, color = 'var(--accent-pink)') {
-    const banner = document.getElementById('sys-alert');
-    banner.textContent = msg;
-    banner.style.background = color;
-    banner.style.display = 'block';
-    
-    // Reset animation
-    banner.style.animation = 'none';
-    banner.offsetHeight; /* trigger reflow */
-    banner.style.animation = null;
-    
-    setTimeout(() => { banner.style.display = 'none'; }, 3000);
+function rgb565ToHex(rgb565) {
+    if (rgb565 === undefined) return '#000000';
+    let r = (rgb565 >> 11) & 0x1F;
+    let g = (rgb565 >> 5) & 0x3F;
+    let b = rgb565 & 0x1F;
+    r = (r << 3) | (r >> 2);
+    g = (g << 2) | (g >> 4);
+    b = (b << 3) | (b >> 2);
+    const toHex = (n) => n.toString(16).padStart(2, '0');
+    return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
 }
 
+function hexToRgb565(hex) {
+    hex = hex.replace('#', '');
+    let r = parseInt(hex.substring(0, 2), 16) || 0;
+    let g = parseInt(hex.substring(2, 4), 16) || 0;
+    let b = parseInt(hex.substring(4, 6), 16) || 0;
+    return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
+}
 
-// ── RPG SYSTEM ──
-window.awardXP = window.addXP = function(amount) {
-    fetch('/api/xp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ add: amount })
-    })
-    .then(res => res.json())
-    .then(data => {
-        const lvlBadge = document.getElementById('lvl-badge');
-        const oldLevel = parseInt(lvlBadge.textContent.replace('LVL ', '')) || 1;
-        
-        lvlBadge.textContent = `LVL ${data.level}`;
-        document.getElementById('val-xp').textContent = `${data.xp} XP`;
-        document.getElementById('bar-xp').style.width = `${data.xp % 100}%`;
-
-        if (data.level > oldLevel) {
-            showAlert(`🎉 LEVEL UP! You reached LVL ${data.level}!`, 'var(--accent-green)');
+window.populateSettings = function() {
+    if (!window.state || !window.state.config) return;
+    
+    const cfg = window.state.config;
+    
+    // Network
+    document.getElementById('cfg-ssid1').value = cfg.wifi_ssid1 || '';
+    document.getElementById('cfg-camip').value = cfg.camIp || '';
+    if (document.getElementById('cfg-piip')) document.getElementById('cfg-piip').value = cfg.piIp || '';
+    
+    // Hardware State
+    if (document.getElementById('cfg-has-cam')) setToggleState(document.getElementById('cfg-has-cam'), cfg.hasCam);
+    if (document.getElementById('cfg-has-servo')) setToggleState(document.getElementById('cfg-has-servo'), cfg.hasServo);
+    if (document.getElementById('cfg-has-pi')) setToggleState(document.getElementById('cfg-has-pi'), cfg.hasPi);
+    
+    // API Keys
+    document.getElementById('cfg-gemini-key').value = cfg.geminiApiKey || '';
+    
+    // Servos
+    if (cfg.servoInvert) {
+        for (let i = 0; i < 8; i++) {
+            if (document.getElementById('cfg-inv-s' + i)) {
+                setToggleState(document.getElementById('cfg-inv-s' + i), cfg.servoInvert[i]);
+            }
         }
-    }).catch(()=>{});
+    }
+    
+    // Motors
+    document.getElementById('trim-left').value = cfg.motorTrimL || 0;
+    document.getElementById('trim-left-val').textContent = cfg.motorTrimL || 0;
+    document.getElementById('trim-right').value = cfg.motorTrimR || 0;
+    document.getElementById('trim-right-val').textContent = cfg.motorTrimR || 0;
+    
+    setToggleState(document.getElementById('cfg-invert-l'), cfg.motorInvertL);
+    setToggleState(document.getElementById('cfg-invert-r'), cfg.motorInvertR);
+    
+    // Persona
+    document.getElementById('blink-rate').value = cfg.blinkRate || 3000;
+    
+    // New Persona configs
+    if (document.getElementById('eye-w')) {
+        document.getElementById('eye-w').value = cfg.eyeSizeX || 72;
+        document.getElementById('val-eye-w').textContent = cfg.eyeSizeX || 72;
+        document.getElementById('eye-h').value = cfg.eyeSizeY || 72;
+        document.getElementById('val-eye-h').textContent = cfg.eyeSizeY || 72;
+        document.getElementById('eye-fps').value = cfg.eyeFps || 60;
+        document.getElementById('val-eye-fps').textContent = cfg.eyeFps || 60;
+        document.getElementById('eye-color-main').value = rgb565ToHex(cfg.eyeColorMain);
+        document.getElementById('eye-color-bg').value = rgb565ToHex(cfg.eyeColorBg);
+    }
+    
+    // Misc
+    setToggleState(document.getElementById('cam-flip'), cfg.camFlip);
+    setToggleState(document.getElementById('cam-mirror'), cfg.camMirror);
+    document.getElementById('cfg-volume').value = cfg.speakerVolume || 128;
 };
 
+function setToggleState(btn, state) {
+    if (!btn) return;
+    if (state) {
+        btn.classList.add('active');
+        btn.textContent = 'ON';
+    } else {
+        btn.classList.remove('active');
+        btn.textContent = 'OFF';
+    }
+}
+
+function getToggleState(btn) {
+    return btn ? btn.classList.contains('active') : false;
+}
+
 document.addEventListener('DOMContentLoaded', () => {
-    
-    // ── 1. LOAD CONFIG ──
-    fetch('/api/config')
-        .then(res => res.json())
-        .then(data => {
-            state.config = data;
-            applyTierVisibility();
-            populateSettings();
-            
-            // Start Cam Stream with Auto-Reconnect Logic
-            {
-                const img = document.getElementById('cam-stream');
-                const camHost = (data.camIp && data.camIp.trim() !== '') ? data.camIp : '192.168.8.189';
-                const streamUrl = `http://${camHost}/stream`;
-                let retryTimeout;
-                
-                const connectCam = () => {
-                    img.src = streamUrl;
-                    document.getElementById('cam-status').textContent = 'CONNECTING...';
-                    document.getElementById('cam-status').style.background = 'var(--neon-amber)';
-                    document.getElementById('cam-status').style.color = '#000';
-                };
 
-                img.onload = () => {
-                    clearTimeout(retryTimeout);
-                    document.getElementById('cam-status').textContent = 'LIVE';
-                    document.getElementById('cam-status').style.background = 'var(--accent-green)';
-                    document.getElementById('cam-status').style.color = '#000';
-                };
-
-                img.onerror = () => {
-                    document.getElementById('cam-status').textContent = 'OFFLINE';
-                    document.getElementById('cam-status').style.background = '#ff3b3b';
-                    document.getElementById('cam-status').style.color = '#fff';
-                    // Clear previous source to prevent browser memory leak loops
-                    img.src = "";
-                    // Auto-reconnect after 3 seconds
-                    clearTimeout(retryTimeout);
-                    retryTimeout = setTimeout(connectCam, 3000);
-                };
-                
-                if (data.camFlip) img.style.transform += ' scaleY(-1)';
-                if (data.camMirror) img.style.transform += ' scaleX(-1)';
-                
-                // Initial connection
-                connectCam();
-            }
-        })
-        .catch(err => console.error("Failed to load config", err));
-
-    function applyTierVisibility() {
-        // Show/hide based on detected components
-        if (state.config.hasServo) {
-            document.querySelectorAll('.tier-pro').forEach(el => el.style.setProperty('display', 'flex', 'important'));
-        }
-        if (state.config.hasPi) {
-            document.querySelectorAll('.tier-max').forEach(el => el.style.setProperty('display', 'flex', 'important'));
-        }
-        
-        // Build a dynamic hardware string
-        let hw = [];
-        hw.push("Core");
-        if (state.config.hasServo) hw.push("Servo");
-        if (state.config.hasPi) hw.push("Pi");
-        document.getElementById('build-tier').textContent = `HW: ${hw.join(' + ')}`;
+    // ═══════════════════════════════════════
+    // TUNING CONFIG (Phase 5)
+    // ═══════════════════════════════════════
+    const cfgImpact = document.getElementById('cfg-impact');
+    const valImpact = document.getElementById('val-impact');
+    if (cfgImpact) {
+        cfgImpact.addEventListener('input', e => valImpact.innerText = parseFloat(e.target.value).toFixed(1));
     }
 
-    // ── 2. TAB NAVIGATION ──
-    const tabs = document.querySelectorAll('.tab-btn');
-    const contents = document.querySelectorAll('.tab-content');
+    const cfgFireTemp = document.getElementById('cfg-fire-temp');
+    const valFireTemp = document.getElementById('val-fire-temp');
+    if (cfgFireTemp) {
+        cfgFireTemp.addEventListener('input', e => valFireTemp.innerText = parseFloat(e.target.value).toFixed(1));
+    }
 
-    tabs.forEach(tab => {
-        tab.addEventListener('click', () => {
-            // Remove active from all
-            tabs.forEach(t => t.classList.remove('active'));
-            contents.forEach(c => c.classList.remove('active'));
-            
-            // Add active to clicked
-            tab.classList.add('active');
-            const target = document.getElementById(tab.dataset.tab);
-            if (target) target.classList.add('active');
-            
-            // Play subtle UI sound if available
-            try {
-                const audio = new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA');
-                audio.volume = 0.2;
-                audio.play().catch(()=>{});
-            } catch(e){}
+    const cfgCvEdge = document.getElementById('cfg-cv-edge');
+    const valCvEdge = document.getElementById('val-cv-edge');
+    if (cfgCvEdge) {
+        cfgCvEdge.addEventListener('input', e => valCvEdge.innerText = e.target.value);
+    }
+
+    const cfgCvArea = document.getElementById('cfg-cv-area');
+    const valCvArea = document.getElementById('val-cv-area');
+    if (cfgCvArea) {
+        cfgCvArea.addEventListener('input', e => valCvArea.innerText = e.target.value);
+    }
+
+    // Load CV Tuning from Pi
+    function loadCvTuning() {
+        const piHost = (state.config.piIp && state.config.piIp.trim() !== '') ? state.config.piIp : '192.168.8.175';
+        fetch(`http://${piHost}:8000/api/cv/tune`)
+            .then(res => res.json())
+            .then(data => {
+                if (cfgCvEdge && data.fall_edge_density_threshold) {
+                    cfgCvEdge.value = data.fall_edge_density_threshold;
+                    valCvEdge.innerText = data.fall_edge_density_threshold;
+                }
+                if (cfgCvArea && data.track_min_area) {
+                    cfgCvArea.value = data.track_min_area;
+                    valCvArea.innerText = data.track_min_area;
+                }
+            })
+            .catch(err => console.log('CV Tuning load failed:', err));
+    }
+    
+    // Save Tuning
+    document.getElementById('btn-save-tuning')?.addEventListener('click', () => {
+        // 1. Save ESP32 Hardware Tuning
+        if (cfgImpact) state.config.impactThresholdG = parseFloat(cfgImpact.value);
+        if (cfgFireTemp) state.config.fireTempThreshold = parseFloat(cfgFireTemp.value);
+        
+        fetch('/api/config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(state.config)
+        }).then(() => {
+            if (window.showAlert) window.showAlert('ESP32 Tuning Saved!', 'var(--accent-green)');
+        });
+
+        // 2. Save Pi CV Tuning
+        const piHost = (state.config.piIp && state.config.piIp.trim() !== '') ? state.config.piIp : '192.168.8.175';
+        fetch(`http://${piHost}:8000/api/cv/tune`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                fall_edge_density_threshold: parseInt(cfgCvEdge.value),
+                track_min_area: parseInt(cfgCvArea.value)
+            })
+        }).then(() => {
+            if (window.showAlert) window.showAlert('CV Tuning Saved!', 'var(--accent-blue)');
+        }).catch(err => console.log('CV Tuning save failed:', err));
+    });
+
+
+    // Range Sliders display update (Persona)
+    document.getElementById('eye-w')?.addEventListener('input', (e) => {
+        document.getElementById('val-eye-w').textContent = e.target.value;
+    });
+    document.getElementById('eye-h')?.addEventListener('input', (e) => {
+        document.getElementById('val-eye-h').textContent = e.target.value;
+    });
+    document.getElementById('eye-fps')?.addEventListener('input', (e) => {
+        document.getElementById('val-eye-fps').textContent = e.target.value;
+    });
+
+    // Save Persona Button
+    document.getElementById('btn-save-persona')?.addEventListener('click', () => {
+        const payload = {
+            eyeSizeX: parseInt(document.getElementById('eye-w').value),
+            eyeSizeY: parseInt(document.getElementById('eye-h').value),
+            eyeFps: parseInt(document.getElementById('eye-fps').value),
+            eyeColorMain: hexToRgb565(document.getElementById('eye-color-main').value),
+            eyeColorBg: hexToRgb565(document.getElementById('eye-color-bg').value)
+        };
+
+        fetch('/api/config', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        }).then(res => {
+            if(res.ok) {
+                if (typeof showAlert === 'function') showAlert('Appearance Saved!', '#32CD32');
+            }
         });
     });
 
-    // ── 3. TELEMETRY POLLING ──
-    setInterval(() => {
-        fetch('/api/telemetry')
-            .then(res => res.json())
-            .then(data => {
-                if (!state.connected) {
-                    state.connected = true;
-                    document.getElementById('conn-dot').className = 'status-dot online';
-                    document.getElementById('conn-text').textContent = 'Online';
-                }
-                
-                // Update Sensors (Buddy Tab)
-                if (data.level !== undefined) {
-                    document.getElementById('lvl-badge').textContent = `LVL ${data.level}`;
-                    document.getElementById('val-xp').textContent = `${data.xp} XP`;
-                    document.getElementById('bar-xp').style.width = `${data.xp % 100}%`;
-                }
-                if (data.battery !== undefined) {
-                    document.getElementById('val-batt').textContent = `${data.battery}%`;
-                    document.getElementById('bar-batt').style.width = `${data.battery}%`;
-                }
-                document.getElementById('val-temp').textContent = `${data.temp.toFixed(1)}°C`;
-                document.getElementById('bar-temp').style.width = `${Math.min(100, data.temp * 2)}%`;
-                
-                document.getElementById('val-hum').textContent = `${data.hum.toFixed(0)}%`;
-                document.getElementById('bar-hum').style.width = `${data.hum}%`;
-                
-                document.getElementById('val-pres').textContent = `${data.pres.toFixed(0)}hPa`;
-                
-                document.getElementById('val-gas').textContent = `${(data.gas / 1000).toFixed(1)}KΩ`;
-                document.getElementById('bar-gas').style.width = `${Math.min(100, data.gas / 5000)}%`;
-                
-                document.getElementById('val-roll').textContent = `${data.roll.toFixed(0)}°`;
-                document.getElementById('bar-roll').style.width = `${50 + (data.roll / 180 * 50)}%`;
-                
-                document.getElementById('val-pitch').textContent = `${data.pitch.toFixed(0)}°`;
-                document.getElementById('bar-pitch').style.width = `${50 + (data.pitch / 180 * 50)}%`;
+    // Range Sliders display update
+    document.getElementById('trim-left')?.addEventListener('input', (e) => {
+        document.getElementById('trim-left-val').textContent = e.target.value;
+    });
+    document.getElementById('trim-right')?.addEventListener('input', (e) => {
+        document.getElementById('trim-right-val').textContent = e.target.value;
+    });
 
-                // Update Footer
-                document.getElementById('heap-info').textContent = `Mem: ${(data.heap / 1024).toFixed(0)}KB`;
-                document.getElementById('wifi-rssi').textContent = `Signal: ${data.rssi}dBm`;
-                
-                // Uptime
-                const uptimeEl = document.getElementById('uptime-info');
-                if (uptimeEl && data.uptime) {
-                    const m = Math.floor(data.uptime / 60);
-                    const s = data.uptime % 60;
-                    uptimeEl.textContent = `Up: ${m}m${s}s`;
-                }
-            })
-            .catch(() => {
-                if (state.connected) {
-                    state.connected = false;
-                    document.getElementById('conn-dot').className = 'status-dot offline';
-                    document.getElementById('conn-text').textContent = 'Offline';
-                    showAlert('Connection Lost', '#ff3b3b');
-                }
-            });
-    }, 3000);
+    // Toggle Buttons
+    document.querySelectorAll('.toggle-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const el = e.currentTarget;
+            if (el.classList.contains('active')) {
+                setToggleState(el, false);
+            } else {
+                setToggleState(el, true);
+            }
+        });
+    });
+
+    // Save Button
+    document.getElementById('btn-save-config')?.addEventListener('click', () => {
+        const payload = {
+            hasCam: document.getElementById('cfg-has-cam') ? getToggleState(document.getElementById('cfg-has-cam')) : false,
+            hasServo: document.getElementById('cfg-has-servo') ? getToggleState(document.getElementById('cfg-has-servo')) : false,
+            hasPi: document.getElementById('cfg-has-pi') ? getToggleState(document.getElementById('cfg-has-pi')) : false,
+            
+            servoInvert: Array.from({length: 8}, (_, i) => getToggleState(document.getElementById('cfg-inv-s' + i))),
+            motorTrimL: parseInt(document.getElementById('trim-left').value),
+            motorTrimR: parseInt(document.getElementById('trim-right').value),
+            motorInvertL: getToggleState(document.getElementById('cfg-invert-l')),
+            motorInvertR: getToggleState(document.getElementById('cfg-invert-r')),
+            
+            blinkRate: parseInt(document.getElementById('blink-rate').value),
+            personaType: parseInt(document.getElementById('cfg-persona-type') ? document.getElementById('cfg-persona-type').value : 0),
+            
+            camFlip: getToggleState(document.getElementById('cam-flip')),
+            camMirror: getToggleState(document.getElementById('cam-mirror')),
+            speakerVolume: parseInt(document.getElementById('cfg-volume').value)
+        };
+
+        const ssid1 = document.getElementById('cfg-ssid1').value;
+        if (ssid1 && ssid1.trim() !== '') payload.wifi_ssid1 = ssid1.trim();
+
+        const camIp = document.getElementById('cfg-camip').value;
+        if (camIp && camIp.trim() !== '') payload.camIp = camIp.trim();
+
+        const piIpEl = document.getElementById('cfg-piip');
+        if (piIpEl && piIpEl.value.trim() !== '') payload.piIp = piIpEl.value.trim();
+
+        const pass1 = document.getElementById('cfg-pass1').value;
+        if (pass1 && pass1 !== '' && !pass1.includes('●●●')) {
+            payload.wifi_pass1 = pass1;
+        }
+
+        const geminiKey = document.getElementById('cfg-gemini-key').value;
+        if (geminiKey && geminiKey !== '' && !geminiKey.includes('****')) {
+            payload.geminiApiKey = geminiKey;
+        }
+
+        fetch('/api/config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        })
+        .then(res => {
+            if (res.ok) {
+                if (window.showAlert) window.showAlert('CONFIG SAVED', 'var(--accent-green)');
+                // Update local state
+                if (window.state) window.state.config = { ...window.state.config, ...payload };
+            } else {
+                if (window.showAlert) window.showAlert('SAVE FAILED', 'var(--accent-pink)');
+            }
+        })
+        .catch(() => {
+            if (window.showAlert) window.showAlert('NETWORK ERROR', 'var(--accent-pink)');
+        });
+    });
+
+    // Reboot Button
+    document.getElementById('btn-reboot')?.addEventListener('click', () => {
+        if (confirm('Are you sure you want to reboot BuddyBot?')) {
+            fetch('/api/reboot', { method: 'POST' }).catch(()=>{});
+            if (window.showAlert) window.showAlert('REBOOTING...', 'var(--accent-blue)');
+            setTimeout(() => { location.reload(); }, 3000);
+        }
+    });
+
+    // Live Persona Preview
+    ['blink-rate'].forEach(id => {
+        document.getElementById(id)?.addEventListener('change', () => {
+            // Wait for slider to be released before sending
+            fetch('/api/persona', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    blinkRate: parseInt(document.getElementById('blink-rate').value)
+                })
+            }).catch(()=>{});
+        });
+    });
 
 });
-

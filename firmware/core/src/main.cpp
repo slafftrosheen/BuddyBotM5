@@ -255,6 +255,7 @@ void initServer() {
     server.on("/api/config", HTTP_POST, [](AsyncWebServerRequest *request){
     }, NULL, [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total){
         if (configApply((const char*)data, len)) {
+            persona.applyConfig();
             request->send(200, "text/plain", "Config Saved");
         } else {
             request->send(400, "text/plain", "Bad Config JSON");

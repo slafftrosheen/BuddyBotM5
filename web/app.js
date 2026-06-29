@@ -137,6 +137,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const target = document.getElementById(tab.dataset.tab);
             if (target) target.classList.add('active');
             
+            // Close the overlay if it's open
+            const overlay = document.getElementById('nav-overlay');
+            if (overlay) overlay.style.display = 'none';
+
             // Play subtle UI sound if available
             try {
                 const audio = new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA');
@@ -145,6 +149,22 @@ document.addEventListener('DOMContentLoaded', () => {
             } catch(e){}
         });
     });
+
+    // ── Hamburger Menu Logic ──
+    const btnMenu = document.getElementById('btn-menu');
+    const btnMenuClose = document.getElementById('btn-menu-close');
+    const navOverlay = document.getElementById('nav-overlay');
+
+    if (btnMenu && navOverlay) {
+        btnMenu.addEventListener('click', () => {
+            navOverlay.style.display = 'flex';
+        });
+    }
+    if (btnMenuClose && navOverlay) {
+        btnMenuClose.addEventListener('click', () => {
+            navOverlay.style.display = 'none';
+        });
+    }
 
     // ── 3. TELEMETRY POLLING ──
     setInterval(() => {

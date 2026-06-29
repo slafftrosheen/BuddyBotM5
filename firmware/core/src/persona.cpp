@@ -10,8 +10,7 @@ BuddyPersona::BuddyPersona() {
     talkingState = false;
 }
 
-void BuddyPersona::begin() {
-    // Dynamically apply config sizing/fps
+void BuddyPersona::applyConfig() {
     roboEyes.eyeLwidthDefault = buddyConfig.eyeSizeX;
     roboEyes.eyeLheightDefault = buddyConfig.eyeSizeY;
     roboEyes.eyeRwidthDefault = buddyConfig.eyeSizeX;
@@ -21,6 +20,11 @@ void BuddyPersona::begin() {
     roboEyes.colorBg = buddyConfig.eyeColorBg;
     roboEyes.blinkInterval = buddyConfig.blinkRate / 1000;
     roboEyes.setPersona(buddyConfig.personaType);
+}
+
+void BuddyPersona::begin() {
+    // Dynamically apply config sizing/fps
+    applyConfig();
 
     // RoboEyes needs to be started. It uses LovyanGFX directly.
     roboEyes.begin(&CoreS3.Display, 320, 240, 50);

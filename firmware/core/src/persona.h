@@ -27,6 +27,9 @@ public:
     // Initialize the persona engine
     void begin();
     
+    // Apply dynamic configuration without restarting
+    void applyConfig();
+
     // Main update loop to handle animations
     void update();
     

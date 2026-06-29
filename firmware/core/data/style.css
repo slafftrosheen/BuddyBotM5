@@ -107,6 +107,16 @@ h1, h2, h3, .card-header, .bot-name, .tab-label, .big-btn {
     box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
 }
 
+.top-left { display: flex; flex-direction: row; align-items: center; justify-content: flex-start; flex: 1; }
+.hamburger-btn {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 24px;
+    margin-right: 10px;
+    cursor: pointer;
+}
+
 .bot-name {
     font-size: 1.4rem;
     color: var(--text-primary);
@@ -756,6 +766,14 @@ input[type="color"]::-webkit-color-swatch {
 }
 
 /* Top Bar */
+.hamburger-btn {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 24px;
+    margin-right: 10px;
+    cursor: pointer;
+}
 .fpv-top-bar {
     display: flex;
     justify-content: space-between;
