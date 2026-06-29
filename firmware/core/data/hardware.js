@@ -4,52 +4,44 @@
 
 document.addEventListener('DOMContentLoaded', () => {
 
-    const groupMap = [
-        { id: 1, name: "Base/Shoulder", grid: "servo-manipulator-grid", init: 90 },
-        { id: 2, name: "Arm/Elbow", grid: "servo-manipulator-grid", init: 90 },
-        { id: 3, name: "Wrist/Spin", grid: "servo-manipulator-grid", init: 90 },
-        { id: 4, name: "Gripper", grid: "servo-manipulator-grid", init: 90 }
-    ];
+    const servos = [];
+    for (let i = 0; i < 8; i++) {
+        servos.push({ id: i, name: `Servo ${i}`, grid: "servo-manipulator-grid", init: 90 });
+    }
 
     // Build sliders dynamically
-    groupMap.forEach(g => {
-        const grid = document.getElementById(g.grid);
+    servos.forEach(s => {
+        const grid = document.getElementById(s.grid);
         if (!grid) return;
 
         const row = document.createElement('div');
         row.className = 'servo-row';
-        
         row.innerHTML = `
-            <span class="servo-name">${g.name}</span>
-            <input type="range" class="servo-slider" id="group-${g.id}" min="0" max="180" value="${g.init}">
-            <span class="servo-val" id="group-val-${g.id}">${g.init}°</span>
+            <span class="servo-name">${s.name}</span>
+            <input type="range" class="servo-slider" id="servo-${s.id}" min="0" max="180" value="${s.init}">
+            <span class="servo-val" id="servo-val-${s.id}">${s.init}°</span>
         `;
         
         grid.appendChild(row);
 
-        const slider = document.getElementById(`group-${g.id}`);
-        const valDisp = document.getElementById(`group-val-${g.id}`);
+        const slider = document.getElementById(`servo-${s.id}`);
+        const valDisp = document.getElementById(`servo-val-${s.id}`);
 
         slider.addEventListener('input', (e) => {
             const angle = parseInt(e.target.value);
             valDisp.textContent = `${angle}°`;
-            sendGroupCommand(g.id, angle);
+            sendServoCommand(s.id, angle);
         });
-    });
 
-    let groupTimeout = null;
-    function sendGroupCommand(group, angle) {
-        // Debounce to prevent flooding I2C
-        if (groupTimeout) clearTimeout(groupTimeout);
-        groupTimeout = setTimeout(() => {
-            fetch('/api/servo', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ group, angle })
-            }).catch(()=>{});
-        }, 50);
-    }
-    // });
+        // Snap to center for continuous rotation servos (90 = stop)
+        const snapToCenter = () => {
+            slider.value = 90;
+            valDisp.textContent = `90°`;
+            sendServoCommand(s.id, 90);
+        };
+        slider.addEventListener('mouseup', snapToCenter);
+        slider.addEventListener('touchend', snapToCenter);
+    });
 
     let servoTimeout = null;
     function sendServoCommand(channel, angle) {

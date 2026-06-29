@@ -35,10 +35,14 @@ This project was developed incrementally across 6 major phases:
 
 ## 🛠️ Architecture
 
-BuddyBot operates on a distributed architecture:
-1. **M5Stack CoreS3 (ESP32-S3)**: The heart of the robot. Runs the `ESPAsyncWebServer`, handles the physical sensors (BME680, IMU), drives the AW9523 Motor/Servo drivers, and displays the RoboEyes persona.
-2. **Raspberry Pi (Python Server)**: The "Visual Cortex". Runs `brain.py` to process the camera stream using OpenCV, and handles the heavy lifting of calling the Gemini Vision API.
-3. **M5 Camera**: Streams MJPEG to the web UI and the Python server.
+BuddyBot operates on a distributed architecture and supports multiple M5Stack controllers:
+1. **Main Controllers**:
+   - **M5Stack CoreS3 / CoreS3 SE (ESP32-S3)**: The original brain. Handles the Web UI, drives the M5 GO Bottom 2 motors via I2C (`0x64`), and displays the RoboEyes persona on a 320x240 screen. (Note: CoreS3 SE does not feature an IMU, so impact detection is safely disabled).
+   - **M5StickS3 / M5StickC Plus 2**: A smaller, compact port of the firmware! Features a 240x135 screen and a built-in BMI270 IMU for full impact detection support.
+2. **Peripheral Hardware**:
+   - **Unit 8Servos (U165)**: Handles robotic arms and grippers over I2C (Address `0x25`). 
+3. **Raspberry Pi (Python Server)**: The "Visual Cortex". Runs `brain.py` to process the camera stream using OpenCV, and handles the heavy lifting of calling the Gemini Vision API.
+4. **M5 Camera**: Streams MJPEG to the web UI and the Python server.
 
 ## 📡 Networking & IPs
 

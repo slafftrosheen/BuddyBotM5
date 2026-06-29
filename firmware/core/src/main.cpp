@@ -60,7 +60,8 @@ const uint8_t ROLLER_M2_ADDR = 0x65;
 // ═══════════════════════════════════════
 // 8-Channel Servo Hat I2C Protocol
 // ═══════════════════════════════════════
-const uint8_t SERVO_HAT_ADDR = 0x38;
+// 8-Channel Servo Hat I2C Protocol (Unit 8Servos uses 0x25)
+const uint8_t SERVO_HAT_ADDR = 0x25;
 
 bool motorsInitialized = false;
 
@@ -113,9 +114,9 @@ void setServoAngle(uint8_t channel, uint8_t angle) {
     if (buddyConfig.servoInvert[channel]) {
         angle = 180 - angle;
     }
-    if (angle > 180) angle = 180;
+    
     Wire.beginTransmission(SERVO_HAT_ADDR);
-    Wire.write(channel);
+    Wire.write(0x50 + channel); // Servo Angle 8-bit Register
     Wire.write(angle);
     Wire.endTransmission();
 }
@@ -298,24 +299,16 @@ void initServer() {
     }, NULL, [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total){
         JsonDocument doc;
         if (!deserializeJson(doc, data, len)) {
-            int angle = doc["angle"];
-            
-            if (!doc["channel"].isNull()) {
-                int channel = doc["channel"];
+            if (!doc["channel"].isNull() && !doc["angle"].isNull()) {
+                uint8_t channel = doc["channel"];
+                uint8_t angle = doc["angle"];
                 setServoAngle(channel, angle);
-            } else if (!doc["group"].isNull()) {
-                int group = doc["group"];
-                // Map group (1-4) to two servos each
-                if (group == 1) { setServoAngle(0, angle); setServoAngle(1, angle); }
-                else if (group == 2) { setServoAngle(2, angle); setServoAngle(3, angle); }
-                else if (group == 3) { setServoAngle(4, angle); setServoAngle(5, angle); }
-                else if (group == 4) { setServoAngle(6, angle); setServoAngle(7, angle); }
+                request->send(200);
+            } else {
+                request->send(400, "text/plain", "Missing channel or angle");
             }
-            
-            request->send(200, "text/plain", "OK");
-            lastActivityTime = millis();
         } else {
-            request->send(400, "text/plain", "Bad Request");
+            request->send(400);
         }
     });
 
@@ -341,7 +334,12 @@ void initServer() {
                 }
                 if (!doc["blinkRate"].isNull()) {
                     buddyConfig.blinkRate = doc["blinkRate"] | 3000;
+                    needsConfigSave = true;
                 }
+                
+                // Immediately apply new colors, eye size, or blink rates
+                persona.applyConfig();
+                
                 lastActivityTime = millis();
                 request->send(200, "text/plain", "OK");
             } else {
@@ -524,11 +522,24 @@ void setup() {
     cfg.internal_mic = false;
     CoreS3.begin(cfg); // Use CoreS3.begin() instead of M5.begin() to properly initialize AW9523 on CoreS3! // Use CoreS3.begin() instead of M5.begin() to properly initialize AW9523 on CoreS3!
 
-    int sda = 2, scl = 1; // CoreS3 Port A (I2C)
+    int sda = M5.Ex_I2C.getSDA();
+    int scl = M5.Ex_I2C.getSCL();
     Wire.begin(sda, scl);
 
-    Wire.beginTransmission(0x38);
+    // Check 8Servos Unit availability
+    Wire.beginTransmission(SERVO_HAT_ADDR);
     buddyConfig.hasServo = (Wire.endTransmission() == 0);
+    
+    if (buddyConfig.hasServo) {
+        // Initialize Unit 8Servos mode registers to SERVO_CTL_MODE (0x03)
+        for (int i = 0; i < 8; i++) {
+            Wire.beginTransmission(SERVO_HAT_ADDR);
+            Wire.write(0x00 + i); // Mode Register for channel
+            Wire.write(0x03);     // SERVO_CTL_MODE
+            Wire.endTransmission();
+            delay(10);
+        }
+    }
 
     // Initialize LittleFS for Web UI
     if (!LittleFS.begin(true)) {
@@ -594,19 +605,24 @@ void loop() {
     ArduinoOTA.handle();
 
     // IMU processing
-    float ax, ay, az, gx, gy, gz;
-    CoreS3.Imu.getAccel(&ax, &ay, &az);
-    CoreS3.Imu.getGyro(&gx, &gy, &gz);
-    
-    imu_pitch = atan2(ax, sqrt(ay * ay + az * az)) * 180.0 / PI;
-    imu_roll = atan2(ay, az) * 180.0 / PI;
-
     unsigned long now = millis();
     float dt = (now - last_imu_time) / 1000.0;
-    if (last_imu_time > 0 && dt > 0) {
-        // Simple deadband for gyro noise
-        if (abs(gz) > 1.5) {
-            imu_yaw += gz * dt;
+    
+    float ax = 0, ay = 0, az = 0;
+    
+    // Only retrieve IMU data if an IMU is present
+    if (M5.Imu.isEnabled()) {
+        auto imu_data = M5.Imu.getImuData();
+        ax = imu_data.accel.x;
+        ay = imu_data.accel.y;
+        az = imu_data.accel.z;
+        
+        imu_pitch = ax; 
+        imu_roll = ay;
+        
+        // Approximate Yaw from Gyro (requires filtering for real use)
+        if (last_imu_time > 0 && dt > 0) {
+            imu_yaw += imu_data.gyro.z * dt; 
         }
     }
     last_imu_time = now;

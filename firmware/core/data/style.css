@@ -427,14 +427,41 @@ button:active {
     box-shadow: 0 0 15px var(--neon-magenta-glow);
 }
 .throttle-label {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    font-weight: 800;
-    font-size: 1rem;
-    color: #fff;
-    text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+    position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+    font-size:0.8rem; font-weight:bold;
+}
+
+/* =========================================
+   Mobile / Portrait Optimizations
+========================================= */
+@media screen and (max-width: 768px), screen and (orientation: portrait) {
+    .fpv-middle-area {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        justify-content: flex-end !important;
+    }
+    .fpv-left-panel {
+        width: 100% !important;
+        flex-wrap: wrap !important;
+        justify-content: center !important;
+        margin-bottom: auto;
+    }
+    .servo-grid {
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+    .fpv-right-panel {
+        width: 100% !important;
+        align-items: center !important;
+    }
+    .drive-buttons {
+        justify-content: center !important;
+    }
+    .drive-layout {
+        width: 100%;
+        justify-content: space-evenly;
+    }
+}
     pointer-events: none;
 }
 
