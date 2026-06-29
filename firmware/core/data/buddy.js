@@ -13,42 +13,11 @@ window.buddyState = {
 };
 
 // Global Functions for other modules
-window.addXP = function(amount) {
-    window.buddyState.xp += amount;
-    localStorage.setItem('buddy_xp', window.buddyState.xp);
-    updateXPUI();
-};
-
 window.refillVitals = function(stat, amount) {
     window.buddyState[stat] = Math.min(100, window.buddyState[stat] + amount);
     updateVitalsUI();
 };
 
-function updateXPUI() {
-    const xp = window.buddyState.xp;
-    // Calculate level (simple curve: 100xp per level)
-    const level = Math.floor(xp / 100) + 1;
-    const xpInLevel = xp % 100;
-    
-    if (level > window.buddyState.level) {
-        // Level up!
-        window.buddyState.level = level;
-        if (window.showAlert) window.showAlert('LEVEL UP!', 'var(--accent-yellow)');
-        fetch('/api/sound', { 
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ sound: 'levelup' }) 
-        }).catch(()=>{});
-    }
-
-    const badge = document.getElementById('lvl-badge');
-    const bar = document.getElementById('bar-xp');
-    const val = document.getElementById('val-xp');
-    
-    if (badge) badge.textContent = `LVL ${level}`;
-    if (bar) bar.style.width = `${xpInLevel}%`;
-    if (val) val.textContent = `${xp} XP`;
-}
 
 function updateVitalsUI() {
     ['hp', 'hunger', 'energy', 'happiness'].forEach(stat => {
@@ -69,7 +38,6 @@ function updateVitalsUI() {
 
 document.addEventListener('DOMContentLoaded', () => {
     
-    updateXPUI();
     updateVitalsUI();
 
     // ── Emotion Picker ──

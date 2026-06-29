@@ -33,12 +33,20 @@
     --text-secondary: #94a3b8;
     --text-muted: #64748b;
 
+    /* Accents used in JS */
+    --accent-blue: #0f9bff;
+    --accent-pink: #ff6b9d;
+    --accent-green: #00e676;
+    --accent-yellow: #ffd600;
+    --accent-red: #ff3b3b;
+
     /* Metrics */
     --radius-sm: 10px;
     --radius-md: 16px;
     --radius-lg: 24px;
     --radius-pill: 99px;
     --nav-height: 85px;
+    --top-height: 70px;
     
     /* Fonts */
     --font-heading: 'Fredoka One', cursive;
@@ -64,7 +72,8 @@ body {
     font-family: var(--font-body);
     height: 100vh;
     width: 100vw;
-    overflow: hidden;
+    overflow-y: auto;
+    overflow-x: hidden;
     user-select: none;
     -webkit-user-select: none;
 }
@@ -326,7 +335,7 @@ button:active {
 }
 .big-btn.treat-btn { background: linear-gradient(135deg, var(--neon-magenta), #9d2deb); box-shadow: 0 6px 20px var(--neon-magenta-glow); border: none; }
 .big-btn.talk-btn { background: linear-gradient(135deg, var(--neon-cyan), #0284c7); box-shadow: 0 6px 20px var(--neon-cyan-glow); border: none; }
-.big-btn.save-btn { background: linear-gradient(135deg, var(--neon-green), #059669); box-shadow: 0 6px 20px var(--neon-green-glow); border: none; }
+.big-btn.save-btn, .save-btn { background: linear-gradient(135deg, var(--neon-green), #059669); box-shadow: 0 6px 20px var(--neon-green-glow); border: none; color: #fff; padding: 12px 20px; border-radius: var(--radius-md); font-weight: 700; width: 100%; margin-top: 15px;}
 .big-btn.danger-btn { background: linear-gradient(135deg, var(--neon-red), #b91c1c); box-shadow: 0 6px 20px var(--neon-red-glow); border: none; }
 
 .quick-actions, .drive-buttons {
@@ -351,6 +360,19 @@ button:active {
 }
 .action-btn.danger { background: rgba(239, 68, 68, 0.2); border-color: rgba(239, 68, 68, 0.5); color: #fca5a5; }
 
+.ai-btn.special {
+    background: rgba(6, 182, 212, 0.1);
+    border: 1px solid var(--neon-cyan);
+    color: var(--neon-cyan);
+    box-shadow: inset 0 0 10px rgba(6, 182, 212, 0.2), 0 0 10px rgba(6, 182, 212, 0.2);
+    text-shadow: 0 0 8px var(--neon-cyan-glow);
+}
+.ai-btn.special:hover, .ai-btn.special.active {
+    background: var(--neon-cyan);
+    color: #000;
+    box-shadow: 0 0 20px var(--neon-cyan-glow);
+}
+
 /* ── Grids ── */
 .sound-grid, .game-grid, .macro-grid, .ai-grid {
     display: grid;
@@ -373,6 +395,7 @@ button:active {
     position: relative;
     border: 1px solid var(--glass-border);
     box-shadow: inset 0 5px 20px rgba(0,0,0,0.3);
+    touch-action: none;
 }
 .throttle-gauge {
     width: 60px;
@@ -453,7 +476,7 @@ input[type=range]::-webkit-slider-thumb {
     font-size: 0.95rem;
     color: var(--text-secondary);
 }
-.settings-form input[type=text], .settings-form input[type=password] {
+.settings-form input[type=text], .settings-form input[type=password], .settings-form select {
     width: 100%;
     padding: 12px;
     border-radius: var(--radius-sm);
@@ -463,11 +486,48 @@ input[type=range]::-webkit-slider-thumb {
     font-size: 1rem;
     font-family: var(--font-body);
     transition: border-color 0.3s, box-shadow 0.3s;
+    appearance: none;
+    -webkit-appearance: none;
 }
 .settings-form input:focus {
     outline: none;
     border-color: var(--neon-cyan);
     box-shadow: 0 0 8px var(--neon-cyan-glow);
+}
+
+/* ── Persona Customization ── */
+.config-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+.cfg-group, .form-group {
+    background: rgba(0,0,0,0.2);
+    padding: 15px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--glass-border);
+}
+.cfg-group label, .form-group label {
+    display: block;
+    font-weight: 700;
+    margin-bottom: 10px;
+    color: var(--text-secondary);
+}
+input[type="color"] {
+    -webkit-appearance: none;
+    border: none;
+    width: 100%;
+    height: 44px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    background: transparent;
+}
+input[type="color"]::-webkit-color-swatch-wrapper {
+    padding: 0;
+}
+input[type="color"]::-webkit-color-swatch {
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-sm);
 }
 
 .toggle-row {
@@ -476,17 +536,36 @@ input[type=range]::-webkit-slider-thumb {
     align-items: center;
 }
 .toggle-btn {
-    padding: 8px 16px;
+    width: 60px;
+    height: 32px;
     border-radius: var(--radius-pill);
     background: rgba(255,255,255,0.05);
     border: 1px solid var(--glass-border);
-    font-weight: 800;
+    position: relative;
+    cursor: pointer;
+    font-size: 0; /* hide text */
+    padding: 0;
+    transition: background 0.3s, box-shadow 0.3s, border-color 0.3s;
 }
-.toggle-btn.on {
-    background: var(--neon-green);
-    color: #000;
-    box-shadow: 0 0 12px var(--neon-green-glow);
-    border: none;
+.toggle-btn::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 26px;
+    height: 26px;
+    background: #fff;
+    border-radius: 50%;
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+}
+.toggle-btn.active {
+    background: var(--neon-cyan);
+    border-color: var(--neon-cyan);
+    box-shadow: 0 0 12px var(--neon-cyan-glow);
+}
+.toggle-btn.active::after {
+    transform: translateX(28px);
 }
 
 /* ── Emotion Grid ── */
@@ -610,4 +689,290 @@ input[type=range]::-webkit-slider-thumb {
     color: var(--text-muted);
     margin-top: 20px;
     line-height: 1.5;
+}
+
+
+/* ── Premium Tactile Micro-Animations ── */
+.big-btn:active, .action-btn:active, .sfx-btn:active, .game-btn:active, .ai-btn:active, .toggle-btn:active, .close-btn:active {
+    transform: scale(0.92);
+    transition: transform 0.05s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Base button transitions */
+.big-btn, .action-btn, .sfx-btn, .game-btn, .ai-btn, .toggle-btn, .close-btn {
+    transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+/* ════════════════════════════════════════ */
+/*             FPV HUD LAYOUT               */
+/* ════════════════════════════════════════ */
+
+.fpv-tab {
+    padding: 0 !important;
+    position: relative;
+    height: calc(100vh - var(--top-height) - var(--nav-height));
+    overflow: hidden;
+    display: flex !important;
+    flex-direction: column;
+}
+
+.fpv-bg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+    background: #000;
+}
+
+#cam-stream {
+    width: 100%;
+    height: 100%;
+    object-fit: contain; /* or cover for full bleed */
+    display: block;
+}
+
+.fpv-hud {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    pointer-events: none; /* Let clicks pass to background if needed */
+}
+
+/* Glassmorphism panels for HUD */
+.fpv-glass {
+    background: rgba(20, 25, 40, 0.4);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: var(--radius-md);
+    pointer-events: auto; /* Re-enable clicks inside panels */
+}
+
+/* Top Bar */
+.fpv-top-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 15px;
+    margin: 10px;
+    border-radius: var(--radius-full);
+}
+
+.fpv-top-left, .fpv-top-center, .fpv-top-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85rem;
+    font-weight: 700;
+}
+
+.fpv-speed-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+}
+
+.fpv-slider {
+    width: 80px;
+}
+
+/* Middle Area Layout */
+.fpv-middle-area {
+    flex: 1;
+    display: flex;
+    justify-content: space-between;
+    align-items: stretch;
+    padding: 0 10px 10px 10px;
+    gap: 10px;
+    overflow: hidden;
+}
+
+/* Left Panel */
+.fpv-left-panel {
+    width: 180px;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+}
+
+.fpv-panel-title {
+    font-size: 0.85rem;
+    font-weight: 800;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    margin-bottom: 10px;
+    text-align: center;
+}
+
+/* Servo Grid override for FPV */
+.fpv-left-panel .servo-grid {
+    grid-template-columns: 1fr; /* Single column */
+    margin-top: 0;
+    gap: 8px;
+}
+
+.fpv-left-panel .servo-item {
+    background: rgba(0,0,0,0.3);
+    padding: 8px;
+}
+
+/* Right Panel */
+.fpv-right-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    align-items: flex-end;
+    gap: 10px;
+}
+
+.fpv-right-panel .drive-buttons {
+    display: flex;
+    gap: 10px;
+    padding: 8px;
+}
+
+.fpv-right-panel .action-btn {
+    margin: 0;
+    padding: 10px 15px;
+    font-size: 0.9rem;
+}
+
+.fpv-right-panel .drive-layout {
+    width: 100%;
+    max-width: 300px;
+    padding: 15px;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+}
+
+/* ── Games Overlays ── */
+.simon-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+    flex: 1;
+    max-width: 400px;
+    margin: 0 auto;
+    width: 100%;
+}
+.simon-btn {
+    border-radius: var(--radius-lg);
+    box-shadow: inset 0 5px 15px rgba(255,255,255,0.2), 0 5px 15px rgba(0,0,0,0.5);
+    opacity: 0.6;
+    transition: all 0.1s;
+    min-height: 120px;
+}
+.simon-btn.active { opacity: 1; filter: brightness(1.5); transform: scale(0.95); }
+.simon-btn.red { background: var(--neon-red); }
+.simon-btn.blue { background: var(--neon-cyan); }
+.simon-btn.green { background: var(--neon-green); }
+.simon-btn.yellow { background: var(--neon-amber); }
+
+.simon-status {
+    text-align: center;
+    font-size: 1.2rem;
+    font-weight: 800;
+    margin-bottom: 20px;
+    color: var(--text-primary);
+}
+
+.dj-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+    flex: 1;
+    max-width: 400px;
+    margin: 0 auto;
+    width: 100%;
+}
+.dj-btn {
+    background: rgba(0,0,0,0.4);
+    border: 2px solid var(--neon-magenta);
+    border-radius: var(--radius-md);
+    font-family: var(--font-heading);
+    font-size: 1.5rem;
+    color: var(--neon-magenta);
+    text-shadow: 0 0 10px var(--neon-magenta-glow);
+    box-shadow: 0 0 15px rgba(217, 70, 239, 0.2);
+    min-height: 120px;
+    transition: all 0.05s;
+}
+.dj-btn:active, .dj-btn.active {
+    background: var(--neon-magenta);
+    color: #fff;
+    box-shadow: 0 0 30px var(--neon-magenta-glow);
+    transform: scale(0.95);
+}
+
+
+/* Responsive adjustments */
+@media (max-width: 600px) {
+    .fpv-middle-area {
+        flex-direction: column;
+        justify-content: flex-end;
+    }
+    .fpv-left-panel {
+        width: 100%;
+        max-height: 120px;
+        flex-direction: row;
+    }
+    .fpv-left-panel .servo-grid {
+        grid-template-columns: repeat(4, 1fr);
+        overflow-x: auto;
+    }
+    .fpv-right-panel {
+        align-items: center;
+    }
+    .fpv-top-center {
+        display: none; /* Hide speed slider on tiny screens in portrait to save space */
+    }
+}
+
+
+/* ── Mobile Dash Responsive Rules ── */
+@media (max-width: 768px) {
+    .vitals-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+    }
+    .fpv-top-bar {
+        flex-direction: column;
+        gap: 8px;
+    }
+    .hud-top {
+        padding: 5px !important;
+    }
+    .drive-layout {
+        flex-direction: column !important;
+        gap: 10px !important;
+        max-width: 100% !important;
+    }
+    .drive-buttons {
+        justify-content: center !important;
+    }
+    #joystick-zone {
+        width: 120px !important;
+        height: 120px !important;
+    }
+    .throttle-gauge {
+        width: 100% !important;
+        height: 30px !important;
+        flex-direction: row !important;
+    }
+    .throttle-fill {
+        width: 0% !important;
+        height: 100% !important;
+        background: linear-gradient(90deg, var(--neon-cyan), var(--neon-magenta)) !important;
+    }
 }

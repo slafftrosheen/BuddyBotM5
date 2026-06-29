@@ -4,42 +4,52 @@
 
 document.addEventListener('DOMContentLoaded', () => {
 
-    const servoMap = [
-        { id: 0, name: "STR", grid: "servo-drive-grid", init: 90 },
-        { id: 1, name: "PAN", grid: "servo-gimbal-grid", init: 90 },
-        { id: 2, name: "TILT", grid: "servo-gimbal-grid", init: 90 },
-        { id: 3, name: "SHLD", grid: "servo-arm-grid", init: 90 },
-        { id: 4, name: "ELBW", grid: "servo-arm-grid", init: 90 },
-        { id: 5, name: "WRST", grid: "servo-arm-grid", init: 90 },
-        { id: 6, name: "SPIN", grid: "servo-arm-grid", init: 90 },
-        { id: 7, name: "GRAB", grid: "servo-arm-grid", init: 90 }
+    const groupMap = [
+        { id: 1, name: "Base/Shoulder", grid: "servo-manipulator-grid", init: 90 },
+        { id: 2, name: "Arm/Elbow", grid: "servo-manipulator-grid", init: 90 },
+        { id: 3, name: "Wrist/Spin", grid: "servo-manipulator-grid", init: 90 },
+        { id: 4, name: "Gripper", grid: "servo-manipulator-grid", init: 90 }
     ];
 
     // Build sliders dynamically
-    servoMap.forEach(s => {
-        const grid = document.getElementById(s.grid);
+    groupMap.forEach(g => {
+        const grid = document.getElementById(g.grid);
         if (!grid) return;
 
         const row = document.createElement('div');
         row.className = 'servo-row';
         
         row.innerHTML = `
-            <span class="servo-name">${s.name}</span>
-            <input type="range" class="servo-slider" id="servo-${s.id}" min="0" max="180" value="${s.init}">
-            <span class="servo-val" id="servo-val-${s.id}">${s.init}°</span>
+            <span class="servo-name">${g.name}</span>
+            <input type="range" class="servo-slider" id="group-${g.id}" min="0" max="180" value="${g.init}">
+            <span class="servo-val" id="group-val-${g.id}">${g.init}°</span>
         `;
         
         grid.appendChild(row);
 
-        const slider = document.getElementById(`servo-${s.id}`);
-        const valDisp = document.getElementById(`servo-val-${s.id}`);
+        const slider = document.getElementById(`group-${g.id}`);
+        const valDisp = document.getElementById(`group-val-${g.id}`);
 
         slider.addEventListener('input', (e) => {
             const angle = parseInt(e.target.value);
             valDisp.textContent = `${angle}°`;
-            sendServoCommand(s.id, angle);
+            sendGroupCommand(g.id, angle);
         });
     });
+
+    let groupTimeout = null;
+    function sendGroupCommand(group, angle) {
+        // Debounce to prevent flooding I2C
+        if (groupTimeout) clearTimeout(groupTimeout);
+        groupTimeout = setTimeout(() => {
+            fetch('/api/servo', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ group, angle })
+            }).catch(()=>{});
+        }, 50);
+    }
+    // });
 
     let servoTimeout = null;
     function sendServoCommand(channel, angle) {

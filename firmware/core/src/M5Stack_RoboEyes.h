@@ -63,6 +63,7 @@ class RoboEyes {
 
  private:
   LovyanGFX *_display;
+  M5Canvas* _sprite = nullptr;
   // Yes, everything is currently still accessible. Be responsibly and don't mess things up :)
 
  public:
@@ -194,6 +195,14 @@ class RoboEyes {
     eyeRheightCurrent = 1;    // start with closed eyes
     setFramerate(frameRate);  // calculate frame interval based on defined frameRate
     _display->clear();        // clear the display buffer
+    
+    // Initialize sprite memory for double buffering to prevent LoadProhibited panic
+    if (!_sprite) {
+        _sprite = new M5Canvas(_display);
+        _sprite->setPsram(true);
+        _sprite->setColorDepth(_display->getColorDepth());
+        _sprite->createSprite(screenWidth, screenHeight);
+    }
   }
 
   void update() {
@@ -434,6 +443,29 @@ class RoboEyes {
   //  PRE-CALCULATIONS AND ACTUAL DRAWINGS
   //*********************************************************************************************
 
+
+  // For Stack-chan persona mouth
+  int mouthYOffset = 0;
+  int currentPersonaType = 0;
+  bool mouthIsOpen = false; // offset applied to eyes to make room for mouth
+  void setPersona(int type) {
+    currentPersonaType = type;
+    if (type == 1) {
+       mouthYOffset = 30;
+    } else {
+       mouthYOffset = 0;
+    }
+  }
+
+  void drawMouth(bool isOpen) {
+    if (currentPersonaType != 1) return;
+    int mouthW = isOpen ? 40 : 20;
+    int mouthH = isOpen ? 30 : 6;
+    int mouthX = (screenWidth - mouthW) / 2;
+    int mouthY = screenHeight / 2 + 50; // Position below eyes
+    _sprite->fillRoundRect(mouthX, mouthY, mouthW, mouthH, 3, colorMain);
+  }
+
   void drawEyes() {
     //// PRE-CALCULATIONS - EYE SIZES AND VALUES FOR ANIMATION INBETWEENING ////
 
@@ -579,15 +611,15 @@ class RoboEyes {
     
     static uint16_t lastColorBg = 0xFFFF; // trigger first time
     if (lastColorBg != colorBg) {
-        _display->fillScreen(colorBg);
+        _sprite->fillScreen(colorBg);
         lastColorBg = colorBg;
     }
     
     // Clear only the bounding boxes of the previous eyes to eliminate full-screen flicker
     // Make the box very generous to cover eyelids which draw outside the standard eye height
     if (oldLw > 0) {
-        _display->fillRect(oldLx - 20, oldLy - 20, oldLw + 40, oldLh + 60, colorBg);
-        _display->fillRect(oldRx - 20, oldRy - 20, oldRw + 40, oldRh + 60, colorBg);
+        _sprite->fillRect(oldLx - 20, oldLy - 20, oldLw + 40, oldLh + 60, colorBg);
+        _sprite->fillRect(oldRx - 20, oldRy - 20, oldRw + 40, oldRh + 60, colorBg);
     }
     
     // Save current as old for next frame
@@ -596,9 +628,9 @@ class RoboEyes {
 
 
     // Draw basic eye rectangles
-    _display->fillRoundRect(eyeLx, eyeLy, eyeLwidthCurrent, eyeLheightCurrent, eyeLborderRadiusCurrent, colorMain);  // left eye
+    _sprite->fillRoundRect(eyeLx, eyeLy, eyeLwidthCurrent, eyeLheightCurrent, eyeLborderRadiusCurrent, colorMain);  // left eye
     if (!cyclops) {
-      _display->fillRoundRect(eyeRx, eyeRy, eyeRwidthCurrent, eyeRheightCurrent, eyeRborderRadiusCurrent, colorMain);  // right eye
+      _sprite->fillRoundRect(eyeRx, eyeRy, eyeRwidthCurrent, eyeRheightCurrent, eyeRborderRadiusCurrent, colorMain);  // right eye
     }
 
     // Prepare mood type transitions
@@ -623,32 +655,34 @@ class RoboEyes {
     // Draw tired top eyelids
     eyelidsTiredHeight = (eyelidsTiredHeight + eyelidsTiredHeightNext) / 2;
     if (!cyclops) {
-      _display->fillTriangle(eyeLx, eyeLy - 1, eyeLx + eyeLwidthCurrent, eyeLy - 1, eyeLx, eyeLy + eyelidsTiredHeight - 1, colorBg);                     // left eye
-      _display->fillTriangle(eyeRx, eyeRy - 1, eyeRx + eyeRwidthCurrent, eyeRy - 1, eyeRx + eyeRwidthCurrent, eyeRy + eyelidsTiredHeight - 1, colorBg);  // right eye
+      _sprite->fillTriangle(eyeLx, eyeLy - 1, eyeLx + eyeLwidthCurrent, eyeLy - 1, eyeLx, eyeLy + eyelidsTiredHeight - 1, colorBg);                     // left eye
+      _sprite->fillTriangle(eyeRx, eyeRy - 1, eyeRx + eyeRwidthCurrent, eyeRy - 1, eyeRx + eyeRwidthCurrent, eyeRy + eyelidsTiredHeight - 1, colorBg);  // right eye
     } else {
       // Cyclops tired eyelids
-      _display->fillTriangle(eyeLx, eyeLy - 1, eyeLx + (eyeLwidthCurrent / 2), eyeLy - 1, eyeLx, eyeLy + eyelidsTiredHeight - 1, colorBg);                                        // left eyelid half
-      _display->fillTriangle(eyeLx + (eyeLwidthCurrent / 2), eyeLy - 1, eyeLx + eyeLwidthCurrent, eyeLy - 1, eyeLx + eyeLwidthCurrent, eyeLy + eyelidsTiredHeight - 1, colorBg);  // right eyelid half
+      _sprite->fillTriangle(eyeLx, eyeLy - 1, eyeLx + (eyeLwidthCurrent / 2), eyeLy - 1, eyeLx, eyeLy + eyelidsTiredHeight - 1, colorBg);                                        // left eyelid half
+      _sprite->fillTriangle(eyeLx + (eyeLwidthCurrent / 2), eyeLy - 1, eyeLx + eyeLwidthCurrent, eyeLy - 1, eyeLx + eyeLwidthCurrent, eyeLy + eyelidsTiredHeight - 1, colorBg);  // right eyelid half
     }
 
     // Draw angry top eyelids
     eyelidsAngryHeight = (eyelidsAngryHeight + eyelidsAngryHeightNext) / 2;
     if (!cyclops) {
-      _display->fillTriangle(eyeLx, eyeLy - 1, eyeLx + eyeLwidthCurrent, eyeLy - 1, eyeLx + eyeLwidthCurrent, eyeLy + eyelidsAngryHeight - 1, colorBg);  // left eye
-      _display->fillTriangle(eyeRx, eyeRy - 1, eyeRx + eyeRwidthCurrent, eyeRy - 1, eyeRx, eyeRy + eyelidsAngryHeight - 1, colorBg);                     // right eye
+      _sprite->fillTriangle(eyeLx, eyeLy - 1, eyeLx + eyeLwidthCurrent, eyeLy - 1, eyeLx + eyeLwidthCurrent, eyeLy + eyelidsAngryHeight - 1, colorBg);  // left eye
+      _sprite->fillTriangle(eyeRx, eyeRy - 1, eyeRx + eyeRwidthCurrent, eyeRy - 1, eyeRx, eyeRy + eyelidsAngryHeight - 1, colorBg);                     // right eye
     } else {
       // Cyclops angry eyelids
-      _display->fillTriangle(eyeLx, eyeLy - 1, eyeLx + (eyeLwidthCurrent / 2), eyeLy - 1, eyeLx + (eyeLwidthCurrent / 2), eyeLy + eyelidsAngryHeight - 1, colorBg);                     // left eyelid half
-      _display->fillTriangle(eyeLx + (eyeLwidthCurrent / 2), eyeLy - 1, eyeLx + eyeLwidthCurrent, eyeLy - 1, eyeLx + (eyeLwidthCurrent / 2), eyeLy + eyelidsAngryHeight - 1, colorBg);  // right eyelid half
+      _sprite->fillTriangle(eyeLx, eyeLy - 1, eyeLx + (eyeLwidthCurrent / 2), eyeLy - 1, eyeLx + (eyeLwidthCurrent / 2), eyeLy + eyelidsAngryHeight - 1, colorBg);                     // left eyelid half
+      _sprite->fillTriangle(eyeLx + (eyeLwidthCurrent / 2), eyeLy - 1, eyeLx + eyeLwidthCurrent, eyeLy - 1, eyeLx + (eyeLwidthCurrent / 2), eyeLy + eyelidsAngryHeight - 1, colorBg);  // right eyelid half
     }
 
     // Draw happy bottom eyelids
     eyelidsHappyBottomOffset = (eyelidsHappyBottomOffset + eyelidsHappyBottomOffsetNext) / 2;
-    _display->fillRoundRect(eyeLx - 1, (eyeLy + eyeLheightCurrent) - eyelidsHappyBottomOffset + 1, eyeLwidthCurrent + 2, eyeLheightDefault, eyeLborderRadiusCurrent, colorBg);  // left eye
+    _sprite->fillRoundRect(eyeLx - 1, (eyeLy + eyeLheightCurrent) - eyelidsHappyBottomOffset + 1, eyeLwidthCurrent + 2, eyeLheightDefault, eyeLborderRadiusCurrent, colorBg);  // left eye
     if (!cyclops) {
-      _display->fillRoundRect(eyeRx - 1, (eyeRy + eyeRheightCurrent) - eyelidsHappyBottomOffset + 1, eyeRwidthCurrent + 2, eyeRheightDefault, eyeRborderRadiusCurrent, colorBg);  // right eye
+      _sprite->fillRoundRect(eyeRx - 1, (eyeRy + eyeRheightCurrent) - eyelidsHappyBottomOffset + 1, eyeRwidthCurrent + 2, eyeRheightDefault, eyeRborderRadiusCurrent, colorBg);  // right eye
     }
 
+    drawMouth(mouthIsOpen);
+    _sprite->pushSprite(0, 0);
   }  // end of method drawEyes
 
 };  // end of class RoboEyes

@@ -192,8 +192,5 @@
  .pio/libdeps/m5stack-cores3/ArduinoJson/src/ArduinoJson.h \
  .pio/libdeps/m5stack-cores3/ArduinoJson/src/ArduinoJson.hpp \
  .pio/libdeps/m5stack-cores3/ArduinoJson/src/ArduinoJson/Configuration.hpp \
- C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/libraries/SD/src/SD.h \
- C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/libraries/FS/src/FS.h \
- C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/libraries/SPI/src/SPI.h \
- C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/cores/esp32/esp32-hal-spi.h \
- C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/libraries/SD/src/sd_defines.h
+ C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/libraries/LittleFS/src/LittleFS.h \
+ C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/libraries/FS/src/FS.h

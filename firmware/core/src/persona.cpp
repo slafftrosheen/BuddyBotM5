@@ -20,6 +20,7 @@ void BuddyPersona::begin() {
     roboEyes.colorMain = buddyConfig.eyeColorMain;
     roboEyes.colorBg = buddyConfig.eyeColorBg;
     roboEyes.blinkInterval = buddyConfig.blinkRate / 1000;
+    roboEyes.setPersona(buddyConfig.personaType);
 
     // RoboEyes needs to be started. It uses LovyanGFX directly.
     roboEyes.begin(&CoreS3.Display, 320, 240, 50);
@@ -29,6 +30,7 @@ void BuddyPersona::begin() {
     roboEyes.idle = 1;
     
     setEmotion(EMO_NORMAL);
+    roboEyes.setPersona(buddyConfig.personaType);
 }
 
 void BuddyPersona::setEmotion(EmotionState newEmotion) {
@@ -122,6 +124,7 @@ void BuddyPersona::update() {
     roboEyes.colorMain = buddyConfig.eyeColorMain;
     roboEyes.colorBg = buddyConfig.eyeColorBg;
     roboEyes.blinkInterval = buddyConfig.blinkRate / 1000;
+    roboEyes.setPersona(buddyConfig.personaType);
 
     // Handle talking animation
     if (isTalking) {
@@ -139,5 +142,6 @@ void BuddyPersona::update() {
     }
     
     // Process blinking and emotion animation
+    roboEyes.mouthIsOpen = talkingState;
     roboEyes.update();
 }

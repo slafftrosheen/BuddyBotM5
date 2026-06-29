@@ -1,5 +1,4 @@
 #include <Arduino.h>
-#include <SD.h>
 #include <LittleFS.h>
 #include <M5CoreS3.h>
 #include <WiFi.h>
@@ -8,6 +7,7 @@
 #include <ArduinoJson.h>
 #include <Wire.h>
 #include <ArduinoOTA.h>
+#include <Update.h>
 #include <WiFiMulti.h>
 #include <ESPmDNS.h>
 
@@ -110,6 +110,9 @@ void setMotorSpeeds(int speedPctM1, int speedPctM2) {
 // ═══════════════════════════════════════
 void setServoAngle(uint8_t channel, uint8_t angle) {
     if (channel > 7) return;
+    if (buddyConfig.servoInvert[channel]) {
+        angle = 180 - angle;
+    }
     if (angle > 180) angle = 180;
     Wire.beginTransmission(SERVO_HAT_ADDR);
     Wire.write(channel);
@@ -199,7 +202,7 @@ void initServer() {
         if (!index) {
             String path = "/" + filename;
             bool isMedia = path.endsWith(".jpg") || path.endsWith(".png") || path.endsWith(".wav");
-            fs::FS &targetFS = isMedia ? (fs::FS&)SD : (fs::FS&)LittleFS;
+            fs::FS &targetFS = LittleFS;
             if (targetFS.exists(path)) targetFS.remove(path);
             uploadFile = targetFS.open(path, FILE_WRITE);
             if (uploadFile) {
@@ -236,6 +239,8 @@ void initServer() {
         doc["hasServo"] = buddyConfig.hasServo;
         doc["hasCam"] = buddyConfig.hasCam;
         doc["hasPi"] = buddyConfig.hasPi;
+        doc["xp"] = buddyConfig.xp;
+        doc["level"] = buddyConfig.level;
         String response;
         serializeJson(doc, response);
         request->send(200, "application/json", response);
@@ -292,9 +297,20 @@ void initServer() {
     }, NULL, [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total){
         JsonDocument doc;
         if (!deserializeJson(doc, data, len)) {
-            int channel = doc["channel"];
             int angle = doc["angle"];
-            setServoAngle(channel, angle);
+            
+            if (!doc["channel"].isNull()) {
+                int channel = doc["channel"];
+                setServoAngle(channel, angle);
+            } else if (!doc["group"].isNull()) {
+                int group = doc["group"];
+                // Map group (1-4) to two servos each
+                if (group == 1) { setServoAngle(0, angle); setServoAngle(1, angle); }
+                else if (group == 2) { setServoAngle(2, angle); setServoAngle(3, angle); }
+                else if (group == 3) { setServoAngle(4, angle); setServoAngle(5, angle); }
+                else if (group == 4) { setServoAngle(6, angle); setServoAngle(7, angle); }
+            }
+            
             request->send(200, "text/plain", "OK");
             lastActivityTime = millis();
         } else {
@@ -304,30 +320,75 @@ void initServer() {
 
     // ── POST /api/persona ──
     server.on("/api/persona", HTTP_POST, [](AsyncWebServerRequest *request){
-        request->send(200, "application/json", "{\"status\":\"ok\"}");
     }, NULL, [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total){
-        JsonDocument doc;
-        DeserializationError error = deserializeJson(doc, data, len);
-        if (!error) {
-            if (!doc["emotion"].isNull()) {
-                persona.setEmotion((EmotionState)(doc["emotion"].as<int>()));
-            }
-            if (!doc["talking"].isNull()) {
-                if (doc["talking"].as<bool>()) {
-                    persona.startTalking();
-                } else {
-                    persona.stopTalking();
+        if (index + len == total) {
+            JsonDocument doc;
+            if (!deserializeJson(doc, data, len)) {
+                if (!doc["emotion"].isNull()) {
+                    persona.setEmotion((EmotionState)(doc["emotion"].as<int>()));
                 }
+                if (!doc["eyeColor"].isNull()) {
+                    buddyConfig.eyeColorMain = hexToColor565(doc["eyeColor"]);
+                    needsConfigSave = true;
+                }
+                if (!doc["talking"].isNull()) {
+                    if (doc["talking"].as<bool>()) {
+                        persona.startTalking();
+                    } else {
+                        persona.stopTalking();
+                    }
+                }
+                if (!doc["blinkRate"].isNull()) {
+                    buddyConfig.blinkRate = doc["blinkRate"] | 3000;
+                }
+                lastActivityTime = millis();
+                request->send(200, "text/plain", "OK");
+            } else {
+                request->send(400, "text/plain", "Bad Request");
             }
+        }
+    });
 
-            if (doc.containsKey("blinkRate")) {
-                buddyConfig.blinkRate = doc["blinkRate"] | 3000;
+    // ── POST /api/xp ──
+    server.on("/api/xp", HTTP_POST, [](AsyncWebServerRequest *request){
+    }, NULL, [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total){
+        if (index + len == total) {
+            JsonDocument doc;
+            if (!deserializeJson(doc, data, len)) {
+                if (!doc["add"].isNull()) {
+                    int add = doc["add"];
+                    buddyConfig.xp += add;
+                    
+                    int newLevel = (buddyConfig.xp / 100) + 1;
+                    if (newLevel > buddyConfig.level) {
+                        buddyConfig.level = newLevel;
+                        persona.setEmotion(EMO_EXCITED); // Celebrate!
+                        playSoundAsync("level_up");
+                        
+                        // Dynamically change eye color based on level
+                        if (newLevel == 2) buddyConfig.eyeColorMain = 0x07E0; // Green
+                        else if (newLevel == 3) buddyConfig.eyeColorMain = 0x001F; // Blue
+                        else if (newLevel == 4) buddyConfig.eyeColorMain = 0xF800; // Red
+                        else if (newLevel >= 5) buddyConfig.eyeColorMain = 0xFD20; // Orange/Gold
+                        
+                        // Eyes grow slightly as it levels up
+                        buddyConfig.eyeSizeX = min(100, buddyConfig.eyeSizeX + 4);
+                        buddyConfig.eyeSizeY = min(100, buddyConfig.eyeSizeY + 4);
+                    }
+                    needsConfigSave = true;
+                }
+                
+                // Return current stats
+                JsonDocument resDoc;
+                resDoc["xp"] = buddyConfig.xp;
+                resDoc["level"] = buddyConfig.level;
+                String resStr;
+                serializeJson(resDoc, resStr);
+                
+                request->send(200, "application/json", resStr);
+            } else {
+                request->send(400, "text/plain", "Bad Request");
             }
-
-            request->send(200, "text/plain", "OK");
-            lastActivityTime = millis();
-        } else {
-            request->send(400, "text/plain", "Bad Request");
         }
     });
 
@@ -349,22 +410,11 @@ void initServer() {
     server.on("/api/sounds", HTTP_GET, [](AsyncWebServerRequest *request){
         JsonDocument doc;
         JsonArray arr = doc["sounds"].to<JsonArray>();
-        File dir = SD.open("/sounds");
-        if (dir) {
-            File entry;
-            while ((entry = dir.openNextFile())) {
-                String name = entry.name();
-                if (name.endsWith(".wav")) {
-                    name.replace(".wav", "");
-                    // Strip leading path if present
-                    int lastSlash = name.lastIndexOf('/');
-                    if (lastSlash >= 0) name = name.substring(lastSlash + 1);
-                    arr.add(name);
-                }
-                entry.close();
-            }
-            dir.close();
-        }
+        arr.add("happy");
+        arr.add("sad");
+        arr.add("alert");
+        arr.add("eat");
+        arr.add("startup");
         String response;
         serializeJson(doc, response);
         request->send(200, "application/json", response);
@@ -395,27 +445,63 @@ void initServer() {
     });
 
 
-    // ── GET /api/ls (Debug) ──
-    server.on("/api/ls", HTTP_GET, [](AsyncWebServerRequest *request){
-        String out = "[";
-        File root = SD.open("/");
-        if (!root) {
-            request->send(500, "application/json", "{\"error\":\"Failed to open directory\"}");
-            return;
+
+
+
+    // ── Web OTA (/update) ──
+    server.on("/update", HTTP_GET, [](AsyncWebServerRequest *request){
+        String html = "<!DOCTYPE html><html><head><title>BuddyBot Web OTA</title>";
+        html += "<style>body{font-family:sans-serif;background:#2c3e50;color:white;text-align:center;padding:50px;}";
+        html += ".card{background:#34495e;padding:20px;border-radius:10px;display:inline-block;}";
+        html += "input[type=submit]{background:#e74c3c;color:white;border:none;padding:10px 20px;border-radius:5px;cursor:pointer;font-size:16px;}</style></head>";
+        html += "<body><h1>🤖 BuddyBot Firmware & FS Update</h1>";
+        html += "<div class='card'><form method='POST' action='/update' enctype='multipart/form-data'>";
+        html += "<p>Select <b>firmware.bin</b> (U_FLASH) or <b>littlefs.bin</b> (U_SPIFFS):</p>";
+        html += "<input type='file' name='update' style='margin-bottom:20px;'><br>";
+        html += "<input type='submit' value='Upload & Flash'>";
+        html += "</form></div></body></html>";
+        request->send(200, "text/html", html);
+    });
+
+    server.on("/update", HTTP_POST, [](AsyncWebServerRequest *request){
+        bool shouldReboot = !Update.hasError();
+        AsyncWebServerResponse *response = request->beginResponse(200, "text/plain", shouldReboot ? "OK: Rebooting..." : "FAIL: Update Error");
+        response->addHeader("Connection", "close");
+        request->send(response);
+        if (shouldReboot) {
+            delay(1000);
+            esp_restart();
         }
-        File file = root.openNextFile();
-        bool first = true;
-        while(file){
-            if (!first) out += ",";
-            out += "{\"name\":\"" + String(file.name()) + "\",\"size\":" + String(file.size()) + ",\"dir\":" + String(file.isDirectory() ? "true" : "false") + "}";
-            first = false;
-            file = root.openNextFile();
+    }, [](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final){
+        if(!index){
+            Serial.printf("[OTA] Update Start: %s\n", filename.c_str());
+            // If filename has 'littlefs' or 'spiffs', treat as FS
+            int cmd = (filename.indexOf("littlefs") >= 0 || filename.indexOf("spiffs") >= 0 || filename.indexOf("fs") >= 0) ? U_SPIFFS : U_FLASH;
+            
+            // Set update size to max possible depending on type
+            size_t updateSize = (cmd == U_FLASH) ? (ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000 : UPDATE_SIZE_UNKNOWN;
+            
+            if(!Update.begin(updateSize, cmd)){
+                Update.printError(Serial);
+            }
         }
-        out += "]";
-        request->send(200, "application/json", out);
+        if(!Update.hasError()){
+            if(Update.write(data, len) != len){
+                Serial.println("[OTA] Write failed.");
+                Update.printError(Serial);
+            }
+        }
+        if(final){
+            if(Update.end(true)){
+                Serial.printf("[OTA] Update Success: %uB\n", index+len);
+            } else {
+                Update.printError(Serial);
+            }
+        }
     });
 
     // ── POST /api/reboot ──
+
     server.on("/api/reboot", HTTP_POST, [](AsyncWebServerRequest *request){
         request->send(200, "text/plain", "Rebooting...");
         delay(500);
@@ -443,22 +529,6 @@ void setup() {
     Wire.beginTransmission(0x38);
     buddyConfig.hasServo = (Wire.endTransmission() == 0);
 
-    // Mount SD Card (needed for config)
-    // CoreS3 uses AW9523 to power the SD card. M5.begin() initializes SPI, so we just pass it to SD.begin()
-    delay(2000); // WAIT FOR POWER TO FULLY STABILIZE.
-    int sd_retries = 0;
-    bool sd_mounted = false;
-    while (sd_retries < 10) {
-        SD.end(); // Clean up any failed state
-        delay(100);
-        sd_mounted = SD.begin(4, SPI, 15000000); // CS=4 for CoreS3 SD
-
-        if (sd_mounted) break;
-        delay(400);
-        sd_retries++;
-    }
-
-
     // Initialize LittleFS for Web UI
     if (!LittleFS.begin(true)) {
         CoreS3.Display.println("LittleFS Mount FAILED");
@@ -466,47 +536,7 @@ void setup() {
         CoreS3.Display.println("LittleFS: MOUNTED OK");
     }
 
-    if (!sd_mounted) {
-
-        CoreS3.Display.setTextColor(TFT_RED);
-        CoreS3.Display.println("SD Card: NOT MOUNTED!");
-        CoreS3.Display.setTextColor(TFT_WHITE);
-    } else {
-        CoreS3.Display.setTextColor(TFT_GREEN);
-        CoreS3.Display.println("SD Card: MOUNTED OK");
-        CoreS3.Display.setTextColor(TFT_WHITE);
-
-        if (!SD.exists("/sounds")) SD.mkdir("/sounds");
-
-        // --- MIGRATION LOGIC: SD to LittleFS ---
-        if (SD.exists("/index.html")) {
-            CoreS3.Display.println("Migrating UI to LittleFS...");
-            const char* files_to_copy[] = {"/index.html", "/app.js", "/style.css", "/hardware.js", "/buddy.js", "/play.js", "/settings.js", "/drive.js", "/ai.js"};
-            for (int i=0; i<9; i++) {
-                if (SD.exists(files_to_copy[i])) {
-                    File src = SD.open(files_to_copy[i], FILE_READ);
-                    LittleFS.remove(files_to_copy[i]);
-                    File dst = LittleFS.open(files_to_copy[i], FILE_WRITE);
-                    if (src && dst) {
-                        size_t len = src.size();
-                        uint8_t buf[512];
-                        while(len) {
-                            size_t toRead = len > 512 ? 512 : len;
-                            src.read(buf, toRead);
-                            dst.write(buf, toRead);
-                            len -= toRead;
-                        }
-                    }
-                    if (src) src.close();
-                    if (dst) dst.close();
-                }
-            }
-            CoreS3.Display.println("Migration complete!");
-        }
-    }
-
-
-    // Load config from SD (or create defaults)
+    // Load config from LittleFS (or create defaults)
     configLoad();
 
     // Apply config values
@@ -620,17 +650,43 @@ void loop() {
     current_m1 = constrain(current_m1, -100, 100);
     current_m2 = constrain(current_m2, -100, 100);
 
-    // Only update I2C if motors are moving or just stopped
+    // Only update I2C if motors are moving or just stopped, and throttle to 20Hz max
     static bool was_moving = false;
-    if (abs(current_m1) > 1 || abs(current_m2) > 1 || was_moving) {
-        setMotorSpeeds((int)current_m1, (int)current_m2);
-        was_moving = (abs(current_m1) > 1 || abs(current_m2) > 1);
+    static unsigned long last_motor_update = 0;
+    if (millis() - last_motor_update > 50) {
+        last_motor_update = millis();
+        if (abs(current_m1) > 1 || abs(current_m2) > 1 || was_moving) {
+            setMotorSpeeds((int)current_m1, (int)current_m2);
+            was_moving = (abs(current_m1) > 1 || abs(current_m2) > 1);
+        }
     }
 
-    // Gamification: Petting Detection
+    // Gamification: Environment Sensing (Feature 3: Smoke/Fire Alarm)
+    static unsigned long lastBmeCheck = 0;
+    if (millis() - lastBmeCheck > 3000) {
+        lastBmeCheck = millis();
+        if (bme.performReading()) {
+            if (bme.temperature > buddyConfig.fireTempThreshold || bme.gas_resistance < buddyConfig.fireGasThreshold) {
+                // Fire / Smoke detected!
+                playSoundAsync("alert");
+                persona.setEmotion(EMO_SHOCKED);
+                lastActivityTime = millis();
+            }
+        }
+    }
+
+    // Gamification: Petting Detection & Impact Detection (Feature 4)
     float accMag = sqrt(ax * ax + ay * ay + az * az);
     static float lastAccMag = 1.0;
-    if (abs(accMag - lastAccMag) > 0.2) { 
+    
+    if (abs(accMag - lastAccMag) > buddyConfig.impactThresholdG) { 
+        // Impact Detection!
+        playSoundAsync("hurt"); // Ouch!
+        persona.setEmotion(EMO_ANGRY);
+        lastActivityTime = millis();
+        isPetting = false;
+    } else if (abs(accMag - lastAccMag) > 0.2) { 
+        // Normal Petting Detection
         if (!isPetting) {
             pettingStartTime = millis();
             isPetting = true;

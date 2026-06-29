@@ -5,6 +5,69 @@
 
 document.addEventListener('DOMContentLoaded', () => {
 
+    // ═══════════════════════════════════════
+    // COLOR TRACK (Feature 2)
+    // ═══════════════════════════════════════
+    document.getElementById('btn-color-track')?.addEventListener('click', (e) => {
+        const active = toggleAIState(e.currentTarget, 'colorTrack', '🛑 Stop Fetch', '🎾 Fetch Color', 'var(--accent-green)', 'FETCH MODE ON');
+        const piHost = (state.config.piIp && state.config.piIp.trim() !== '') ? state.config.piIp : '192.168.8.175';
+        fetch(`http://${piHost}:8000/api/cv/track`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({enabled: active})
+        }).catch(err => console.error(err));
+    });
+
+    // ═══════════════════════════════════════
+    // FALL PREVENTION (Feature 7)
+    // ═══════════════════════════════════════
+    document.getElementById('btn-fall-prevent')?.addEventListener('click', (e) => {
+        const active = toggleAIState(e.currentTarget, 'fallPrevent', '🛑 Disable Fall Prevent', '🛑 Fall Prevention', '#ff9800', 'FALL PREVENTION ARMED');
+        const piHost = (state.config.piIp && state.config.piIp.trim() !== '') ? state.config.piIp : '192.168.8.175';
+        fetch(`http://${piHost}:8000/api/cv/fall`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({enabled: active})
+        }).catch(err => console.error(err));
+    });
+
+
+    // ── Vision Trigger (What do you see?) ──
+    const btnVision = document.getElementById('btn-vision');
+    if (btnVision) {
+        btnVision.addEventListener('click', () => {
+            if (!state.config.hasPi) {
+                if (window.showAlert) window.showAlert('Raspberry Pi required for Vision API!', 'var(--accent-red)');
+                return;
+            }
+            const origText = btnVision.innerHTML;
+            btnVision.innerHTML = '👁️ Looking...';
+            btnVision.disabled = true;
+            
+            // Get piIp from config, fallback to buddy.local
+            const piHost = (state.config.piIp && state.config.piIp.trim() !== '') ? state.config.piIp : '192.168.8.175';
+            
+            fetch(`http://${piHost}:8000/api/vision`)
+                .then(r => r.json())
+                .then(data => {
+                    btnVision.innerHTML = origText;
+                    btnVision.disabled = false;
+                    if (data.error) {
+                        if (window.showAlert) window.showAlert(data.error, 'var(--accent-red)');
+                    } else {
+                        if (window.showAlert) window.showAlert('👀 Buddy says: ' + data.response, 'var(--accent-green)');
+                        if (window.awardXP) window.awardXP(15);
+                    }
+                })
+                .catch(err => {
+                    btnVision.innerHTML = origText;
+                    btnVision.disabled = false;
+                    if (window.showAlert) window.showAlert('Failed to contact AI Brain!', 'var(--accent-red)');
+                });
+        });
+    }
+
+
     // ── Voice Assistant Trigger ──
     const btnVoice = document.getElementById('btn-voice-cmd');
     if (btnVoice) {
@@ -74,18 +137,59 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // ═══════════════════════════════════════
-    // FACE FOLLOW (placeholder toggle)
+    // FACE FOLLOW (tracking.js)
     // ═══════════════════════════════════════
+    let faceTrackerTask = null;
     document.getElementById('btn-face-track')?.addEventListener('click', (e) => {
-        toggleAIState(e.currentTarget, 'faceTrack', '🛑 Stop Tracking', '👤 Face Follow', 'var(--accent-pink)', 'FACE TRACKING ON');
+        const active = toggleAIState(e.currentTarget, 'faceTrack', '🛑 Stop Tracking', '👤 Face Follow', 'var(--accent-pink)', 'FACE TRACKING ON');
+        
+        if (active) {
+            if (window.tracking) {
+                const canvas = document.getElementById('cv-canvas');
+                const ctx = canvas.getContext('2d', { willReadFrequently: true });
+                const img = document.getElementById('cam-stream');
+                
+                const tracker = new tracking.ObjectTracker('face');
+                tracker.setInitialScale(4);
+                tracker.setStepSize(2);
+                tracker.setEdgesDensity(0.1);
+                
+                faceTrackerTask = setInterval(() => {
+                    if (!img || !img.complete || img.naturalWidth === 0) return;
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                    
+                    tracking.track('#cv-canvas', tracker);
+                }, 300);
+                
+                tracker.on('track', function(event) {
+                    if (event.data.length === 0) {
+                        // No face
+                        fetch('/api/motors', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ speed: 0, turn: 0 }) }).catch(()=>{});
+                    } else {
+                        // Get largest face
+                        const face = event.data.reduce((prev, current) => (prev.width * prev.height > current.width * current.height) ? prev : current);
+                        
+                        // Center is 160
+                        const faceCenter = face.x + (face.width / 2);
+                        const error = faceCenter - 160;
+                        
+                        // Deadzone
+                        if (Math.abs(error) > 30) {
+                            const turn = (error > 0) ? 35 : -35;
+                            fetch('/api/motors', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ speed: 0, turn: turn }) }).catch(()=>{});
+                        } else {
+                            fetch('/api/motors', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ speed: 0, turn: 0 }) }).catch(()=>{});
+                        }
+                    }
+                });
+            }
+        } else {
+            clearInterval(faceTrackerTask);
+            fetch('/api/motors', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ speed: 0, turn: 0 }) }).catch(()=>{});
+        }
     });
 
-    // ═══════════════════════════════════════
-    // COLOR TRACK (placeholder toggle)
-    // ═══════════════════════════════════════
-    document.getElementById('btn-color-track')?.addEventListener('click', (e) => {
-        toggleAIState(e.currentTarget, 'colorTrack', '🛑 Stop Fetch', '🎾 Fetch Color', 'var(--accent-green)', 'FETCH MODE ON');
-    });
+    
 
     // ═══════════════════════════════════════
     // GUARD MODE — Motion detection via IMU
@@ -141,13 +245,14 @@ document.addEventListener('DOMContentLoaded', () => {
     let sleepCountdown = null;
     
     document.getElementById('btn-sleep-cycle')?.addEventListener('click', (e) => {
-        const active = toggleAIState(e.currentTarget, 'sleepCycle', '🛑 Wake Up', '💤 Sleep Timer', 'var(--accent-purple)', 'SLEEP IN 60 SECONDS...');
+        const btn = e.currentTarget;
+        const active = toggleAIState(btn, 'sleepCycle', '🛑 Wake Up', '💤 Sleep Timer', 'var(--accent-purple)', 'SLEEP IN 60 SECONDS...');
         
         if (active) {
             let remaining = 60;
             sleepCountdown = setInterval(() => {
                 remaining--;
-                e.currentTarget.innerHTML = `💤 Sleep in ${remaining}s`;
+                if (btn) btn.innerHTML = `💤 Sleep in ${remaining}s`;
                 if (remaining <= 0) {
                     clearInterval(sleepCountdown);
                     // Put bot to sleep
@@ -155,7 +260,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     fetch('/api/persona', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ emotion: 3 }) }).catch(()=>{});
                     fetch('/api/sound', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ sound: 'snore' }) }).catch(()=>{});
                     if (window.showAlert) window.showAlert('💤 Zzzzz...', 'var(--accent-purple)');
-                    e.currentTarget.innerHTML = '🛑 Wake Up';
+                    if (btn) btn.innerHTML = '🛑 Wake Up';
                 }
             }, 1000);
         } else {
@@ -166,10 +271,49 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // ═══════════════════════════════════════
-    // QR SCANNER (placeholder toggle)
+    // QR SCANNER (jsQR)
     // ═══════════════════════════════════════
+    let qrInterval = null;
     document.getElementById('btn-qr-scan')?.addEventListener('click', (e) => {
-        toggleAIState(e.currentTarget, 'qrScan', '🛑 Stop Scanner', '📷 QR Scanner', 'var(--accent-yellow)', 'SCANNER ACTIVE');
+        const active = toggleAIState(e.currentTarget, 'qrScan', '🛑 Stop Scanner', '📷 QR Scanner', 'var(--accent-yellow)', 'SCANNER ACTIVE');
+        const canvas = document.getElementById('cv-canvas');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        const img = document.getElementById('cam-stream');
+        
+        if (active) {
+            qrInterval = setInterval(() => {
+                if (!img || !img.complete || img.naturalWidth === 0) return;
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                
+                if (window.jsQR) {
+                    const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "dontInvert" });
+                    if (code) {
+                        console.log("Found QR:", code.data);
+                        if (window.showAlert) window.showAlert(`QR: ${code.data}`, 'var(--accent-green)');
+                        
+                        if (code.data === "COMMAND_DANCE") {
+                            fetch('/api/persona', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ emotion: 1 }) }).catch(()=>{});
+                            fetch('/api/sound', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ sound: 'melody' }) }).catch(()=>{});
+                            fetch('/api/motors', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ speed: 0, turn: 50 }) }).catch(()=>{});
+                            setTimeout(() => fetch('/api/motors', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ speed: 0, turn: -50 }) }).catch(()=>{}), 1000);
+                            setTimeout(() => fetch('/api/motors', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ speed: 0, turn: 0 }) }).catch(()=>{}), 2000);
+                            // Pause scanning momentarily
+                            clearInterval(qrInterval);
+                            setTimeout(() => document.getElementById('btn-qr-scan').click(), 3000);
+                        } else if (code.data === "COMMAND_SPIN") {
+                            fetch('/api/persona', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ emotion: 8 }) }).catch(()=>{});
+                            fetch('/api/motors', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ speed: 0, turn: 80 }) }).catch(()=>{});
+                            setTimeout(() => fetch('/api/motors', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ speed: 0, turn: 0 }) }).catch(()=>{}), 1500);
+                            clearInterval(qrInterval);
+                            setTimeout(() => document.getElementById('btn-qr-scan').click(), 2500);
+                        }
+                    }
+                }
+            }, 500);
+        } else {
+            clearInterval(qrInterval);
+        }
     });
 
     // ═══════════════════════════════════════
@@ -204,17 +348,60 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btn-yolo-vision')?.addEventListener('click', (e) => {
         const active = toggleAIState(e.currentTarget, 'yoloVision', '🛑 Stop YOLO', '👁️ YOLO Vision', 'rgba(255,0,255,0.5)', 'YOLO VISION ACTIVE');
         
+        // Ensure bounding box container exists
+        let bboxContainer = document.getElementById('bbox-container');
+        if (!bboxContainer) {
+            bboxContainer = document.createElement('div');
+            bboxContainer.id = 'bbox-container';
+            bboxContainer.style.position = 'absolute';
+            bboxContainer.style.top = '0';
+            bboxContainer.style.left = '0';
+            bboxContainer.style.width = '100%';
+            bboxContainer.style.height = '100%';
+            bboxContainer.style.pointerEvents = 'none';
+            document.querySelector('.fpv-bg').appendChild(bboxContainer);
+        }
+        
         if (active) {
             yoloInterval = setInterval(() => {
-                fetch(`http://buddybrain.local:8000/api/detect`, { method: 'POST' })
+                const piHost = (state.config.piIp && state.config.piIp.trim() !== '') ? state.config.piIp : '192.168.8.175';
+                fetch(`http://${piHost}:8000/api/detect`, { method: 'POST' })
                     .then(res => res.json())
                     .then(data => {
-                        console.log("YOLO Detections:", data);
+                        bboxContainer.innerHTML = ''; // clear old boxes
+                        if (data.detections) {
+                            data.detections.forEach(det => {
+                                const box = document.createElement('div');
+                                box.style.position = 'absolute';
+                                // Assuming detect API returns % based coordinates
+                                box.style.left = `${det.x}%`;
+                                box.style.top = `${det.y}%`;
+                                box.style.width = `${det.w}%`;
+                                box.style.height = `${det.h}%`;
+                                box.style.border = '2px solid var(--neon-magenta)';
+                                box.style.boxShadow = '0 0 10px var(--neon-magenta-glow)';
+                                
+                                const label = document.createElement('span');
+                                label.textContent = `${det.label} (${Math.round(det.confidence*100)}%)`;
+                                label.style.position = 'absolute';
+                                label.style.top = '-20px';
+                                label.style.left = '0';
+                                label.style.background = 'var(--neon-magenta)';
+                                label.style.color = '#fff';
+                                label.style.padding = '2px 4px';
+                                label.style.fontSize = '10px';
+                                label.style.fontWeight = 'bold';
+                                
+                                box.appendChild(label);
+                                bboxContainer.appendChild(box);
+                            });
+                        }
                     })
                     .catch(()=>{});
-            }, 2000);
+            }, 1000); // 1 FPS for YOLO
         } else {
             clearInterval(yoloInterval);
+            bboxContainer.innerHTML = '';
         }
     });
 

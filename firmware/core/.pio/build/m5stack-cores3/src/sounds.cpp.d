@@ -189,11 +189,6 @@
  C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/tools/sdk/esp32s3/include/esp_hw_support/include/soc/esp32/spiram.h \
  C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/cores/esp32/io_pin_remap.h \
  C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/cores/esp32/Arduino.h \
- C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/libraries/SD/src/SD.h \
- C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/libraries/FS/src/FS.h \
- C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/libraries/SPI/src/SPI.h \
- C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/cores/esp32/esp32-hal-spi.h \
- C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/libraries/SD/src/sd_defines.h \
  .pio/libdeps/m5stack-cores3/M5CoreS3/src/M5CoreS3.h \
  .pio/libdeps/m5stack-cores3/M5Unified/src/M5Unified.h \
  .pio/libdeps/m5stack-cores3/M5Unified/src/M5Unified.hpp \
@@ -234,6 +229,8 @@
  .pio/libdeps/m5stack-cores3/M5GFX/src/lgfx/v1/platforms/esp32/../esp32/../../../utility/result.hpp \
  c:\users\slaff\buddybotm5\firmware\core\.pio\libdeps\m5stack-cores3\m5gfx\src\lgfx\internal\memory.h \
  C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/tools/sdk/esp32s3/include/soc/esp32s3/include/soc/i2s_reg.h \
+ C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/libraries/SPI/src/SPI.h \
+ C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/cores/esp32/esp32-hal-spi.h \
  C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/libraries/Wire/src/Wire.h \
  C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32@src-d3ff28c963a2769eac63b92de1fe648a/cores/esp32/esp32-hal.h \
  .pio/libdeps/m5stack-cores3/M5GFX/src/lgfx/v1/platforms/esp32/../../../utility/result.hpp \

@@ -135,6 +135,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: JSON.stringify({ sound: sound }) 
             }).catch(()=>{});
             
+            if (window.refillVitals) {
+                window.refillVitals('energy', -1);
+                window.refillVitals('happiness', 2);
+            }
+            
             // Micro motor bob
             fetch('/api/motors', { 
                 method: 'POST',
@@ -238,6 +243,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 simonStatus.textContent = "CORRECT!";
                 simonStatus.style.color = 'var(--accent-green)';
                 if (window.addXP) window.addXP(10);
+                if (window.refillVitals) {
+                    window.refillVitals('energy', -5);
+                    window.refillVitals('happiness', 10);
+                }
                 setTimeout(nextSimonRound, 1000);
             }
         });

@@ -32,9 +32,24 @@ window.populateSettings = function() {
     // Network
     document.getElementById('cfg-ssid1').value = cfg.wifi_ssid1 || '';
     document.getElementById('cfg-camip').value = cfg.camIp || '';
+    if (document.getElementById('cfg-piip')) document.getElementById('cfg-piip').value = cfg.piIp || '';
+    
+    // Hardware State
+    if (document.getElementById('cfg-has-cam')) setToggleState(document.getElementById('cfg-has-cam'), cfg.hasCam);
+    if (document.getElementById('cfg-has-servo')) setToggleState(document.getElementById('cfg-has-servo'), cfg.hasServo);
+    if (document.getElementById('cfg-has-pi')) setToggleState(document.getElementById('cfg-has-pi'), cfg.hasPi);
     
     // API Keys
     document.getElementById('cfg-gemini-key').value = cfg.geminiApiKey || '';
+    
+    // Servos
+    if (cfg.servoInvert) {
+        for (let i = 0; i < 8; i++) {
+            if (document.getElementById('cfg-inv-s' + i)) {
+                setToggleState(document.getElementById('cfg-inv-s' + i), cfg.servoInvert[i]);
+            }
+        }
+    }
     
     // Motors
     document.getElementById('trim-left').value = cfg.motorTrimL || 0;
@@ -82,6 +97,80 @@ function getToggleState(btn) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+
+    // ═══════════════════════════════════════
+    // TUNING CONFIG (Phase 5)
+    // ═══════════════════════════════════════
+    const cfgImpact = document.getElementById('cfg-impact');
+    const valImpact = document.getElementById('val-impact');
+    if (cfgImpact) {
+        cfgImpact.addEventListener('input', e => valImpact.innerText = parseFloat(e.target.value).toFixed(1));
+    }
+
+    const cfgFireTemp = document.getElementById('cfg-fire-temp');
+    const valFireTemp = document.getElementById('val-fire-temp');
+    if (cfgFireTemp) {
+        cfgFireTemp.addEventListener('input', e => valFireTemp.innerText = parseFloat(e.target.value).toFixed(1));
+    }
+
+    const cfgCvEdge = document.getElementById('cfg-cv-edge');
+    const valCvEdge = document.getElementById('val-cv-edge');
+    if (cfgCvEdge) {
+        cfgCvEdge.addEventListener('input', e => valCvEdge.innerText = e.target.value);
+    }
+
+    const cfgCvArea = document.getElementById('cfg-cv-area');
+    const valCvArea = document.getElementById('val-cv-area');
+    if (cfgCvArea) {
+        cfgCvArea.addEventListener('input', e => valCvArea.innerText = e.target.value);
+    }
+
+    // Load CV Tuning from Pi
+    function loadCvTuning() {
+        const piHost = (state.config.piIp && state.config.piIp.trim() !== '') ? state.config.piIp : '192.168.8.175';
+        fetch(`http://${piHost}:8000/api/cv/tune`)
+            .then(res => res.json())
+            .then(data => {
+                if (cfgCvEdge && data.fall_edge_density_threshold) {
+                    cfgCvEdge.value = data.fall_edge_density_threshold;
+                    valCvEdge.innerText = data.fall_edge_density_threshold;
+                }
+                if (cfgCvArea && data.track_min_area) {
+                    cfgCvArea.value = data.track_min_area;
+                    valCvArea.innerText = data.track_min_area;
+                }
+            })
+            .catch(err => console.log('CV Tuning load failed:', err));
+    }
+    
+    // Save Tuning
+    document.getElementById('btn-save-tuning')?.addEventListener('click', () => {
+        // 1. Save ESP32 Hardware Tuning
+        if (cfgImpact) state.config.impactThresholdG = parseFloat(cfgImpact.value);
+        if (cfgFireTemp) state.config.fireTempThreshold = parseFloat(cfgFireTemp.value);
+        
+        fetch('/api/config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(state.config)
+        }).then(() => {
+            if (window.showAlert) window.showAlert('ESP32 Tuning Saved!', 'var(--accent-green)');
+        });
+
+        // 2. Save Pi CV Tuning
+        const piHost = (state.config.piIp && state.config.piIp.trim() !== '') ? state.config.piIp : '192.168.8.175';
+        fetch(`http://${piHost}:8000/api/cv/tune`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                fall_edge_density_threshold: parseInt(cfgCvEdge.value),
+                track_min_area: parseInt(cfgCvArea.value)
+            })
+        }).then(() => {
+            if (window.showAlert) window.showAlert('CV Tuning Saved!', 'var(--accent-blue)');
+        }).catch(err => console.log('CV Tuning save failed:', err));
+    });
+
 
     // Range Sliders display update (Persona)
     document.getElementById('eye-w')?.addEventListener('input', (e) => {
@@ -140,13 +229,20 @@ document.addEventListener('DOMContentLoaded', () => {
         const payload = {
             wifi_ssid1: document.getElementById('cfg-ssid1').value,
             camIp: document.getElementById('cfg-camip').value,
+            piIp: document.getElementById('cfg-piip') ? document.getElementById('cfg-piip').value : '',
             
+            hasCam: document.getElementById('cfg-has-cam') ? getToggleState(document.getElementById('cfg-has-cam')) : false,
+            hasServo: document.getElementById('cfg-has-servo') ? getToggleState(document.getElementById('cfg-has-servo')) : false,
+            hasPi: document.getElementById('cfg-has-pi') ? getToggleState(document.getElementById('cfg-has-pi')) : false,
+            
+            servoInvert: Array.from({length: 8}, (_, i) => getToggleState(document.getElementById('cfg-inv-s' + i))),
             motorTrimL: parseInt(document.getElementById('trim-left').value),
             motorTrimR: parseInt(document.getElementById('trim-right').value),
             motorInvertL: getToggleState(document.getElementById('cfg-invert-l')),
             motorInvertR: getToggleState(document.getElementById('cfg-invert-r')),
             
             blinkRate: parseInt(document.getElementById('blink-rate').value),
+            personaType: parseInt(document.getElementById('cfg-persona-type') ? document.getElementById('cfg-persona-type').value : 0),
             
             camFlip: getToggleState(document.getElementById('cam-flip')),
             camMirror: getToggleState(document.getElementById('cam-mirror')),
@@ -170,7 +266,7 @@ document.addEventListener('DOMContentLoaded', () => {
         })
         .then(res => {
             if (res.ok) {
-                if (window.showAlert) window.showAlert('CONFIG SAVED TO SD', 'var(--accent-green)');
+                if (window.showAlert) window.showAlert('CONFIG SAVED', 'var(--accent-green)');
                 // Update local state
                 if (window.state) window.state.config = { ...window.state.config, ...payload };
             } else {

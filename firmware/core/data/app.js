@@ -31,6 +31,29 @@ function showAlert(msg, color = 'var(--accent-pink)') {
     setTimeout(() => { banner.style.display = 'none'; }, 3000);
 }
 
+
+// ── RPG SYSTEM ──
+window.awardXP = window.addXP = function(amount) {
+    fetch('/api/xp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ add: amount })
+    })
+    .then(res => res.json())
+    .then(data => {
+        const lvlBadge = document.getElementById('lvl-badge');
+        const oldLevel = parseInt(lvlBadge.textContent.replace('LVL ', '')) || 1;
+        
+        lvlBadge.textContent = `LVL ${data.level}`;
+        document.getElementById('val-xp').textContent = `${data.xp} XP`;
+        document.getElementById('bar-xp').style.width = `${data.xp % 100}%`;
+
+        if (data.level > oldLevel) {
+            showAlert(`🎉 LEVEL UP! You reached LVL ${data.level}!`, 'var(--accent-green)');
+        }
+    }).catch(()=>{});
+};
+
 document.addEventListener('DOMContentLoaded', () => {
     
     // ── 1. LOAD CONFIG ──
@@ -41,21 +64,43 @@ document.addEventListener('DOMContentLoaded', () => {
             applyTierVisibility();
             populateSettings();
             
-            // Start Cam Stream (always try, handled gracefully if offline)
+            // Start Cam Stream with Auto-Reconnect Logic
             {
                 const img = document.getElementById('cam-stream');
-                const camHost = (data.camIp && data.camIp.trim() !== '') ? data.camIp : 'buddycam.local';
-                img.src = `http://${camHost}/stream`;
+                const camHost = (data.camIp && data.camIp.trim() !== '') ? data.camIp : '192.168.8.189';
+                const streamUrl = `http://${camHost}/stream`;
+                let retryTimeout;
+                
+                const connectCam = () => {
+                    img.src = streamUrl;
+                    document.getElementById('cam-status').textContent = 'CONNECTING...';
+                    document.getElementById('cam-status').style.background = 'var(--neon-amber)';
+                    document.getElementById('cam-status').style.color = '#000';
+                };
+
+                img.onload = () => {
+                    clearTimeout(retryTimeout);
+                    document.getElementById('cam-status').textContent = 'LIVE';
+                    document.getElementById('cam-status').style.background = 'var(--accent-green)';
+                    document.getElementById('cam-status').style.color = '#000';
+                };
+
                 img.onerror = () => {
                     document.getElementById('cam-status').textContent = 'OFFLINE';
                     document.getElementById('cam-status').style.background = '#ff3b3b';
                     document.getElementById('cam-status').style.color = '#fff';
+                    // Clear previous source to prevent browser memory leak loops
+                    img.src = "";
+                    // Auto-reconnect after 3 seconds
+                    clearTimeout(retryTimeout);
+                    retryTimeout = setTimeout(connectCam, 3000);
                 };
+                
                 if (data.camFlip) img.style.transform += ' scaleY(-1)';
                 if (data.camMirror) img.style.transform += ' scaleX(-1)';
-                document.getElementById('cam-status').textContent = 'LIVE';
-                document.getElementById('cam-status').style.background = 'var(--accent-green)';
-                document.getElementById('cam-status').style.color = '#000';
+                
+                // Initial connection
+                connectCam();
             }
         })
         .catch(err => console.error("Failed to load config", err));
@@ -113,6 +158,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 
                 // Update Sensors (Buddy Tab)
+                if (data.level !== undefined) {
+                    document.getElementById('lvl-badge').textContent = `LVL ${data.level}`;
+                    document.getElementById('val-xp').textContent = `${data.xp} XP`;
+                    document.getElementById('bar-xp').style.width = `${data.xp % 100}%`;
+                }
                 if (data.battery !== undefined) {
                     document.getElementById('val-batt').textContent = `${data.battery}%`;
                     document.getElementById('bar-batt').style.width = `${data.battery}%`;

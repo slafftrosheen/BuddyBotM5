@@ -5,7 +5,7 @@
 
 // ═══════════════════════════════════════
 // BuddyBot Configuration System
-// Persists to /config.json on SD card
+// Persists to /config.json on LittleFS
 // ═══════════════════════════════════════
 
 // Auto-Detected Hardware Flags
@@ -40,6 +40,7 @@ struct BuddyConfig {
     int eyeFps;
     uint32_t eyeColorMain;
     uint32_t eyeColorBg;
+    int personaType; // 0 = RoboEyes, 1 = StackChan
     
     // ── API Keys ──
     char geminiApiKey[64];
@@ -53,6 +54,15 @@ struct BuddyConfig {
     bool camFlip;
     bool camMirror;
     int speakerVolume;  // 0-255
+    
+    // ── RPG Progression ──
+    int xp;
+    int level;
+    
+    // ── Tuning (Phase 5) ──
+    float impactThresholdG;
+    float fireTempThreshold;
+    int fireGasThreshold;
 };
 
 // Global config instance
@@ -60,8 +70,8 @@ extern BuddyConfig buddyConfig;
 
 // Functions
 void configSetDefaults();
-void configLoad();      // Load from /config.json on SD
-void configSave();      // Save to /config.json on SD
+void configLoad();      // Load from /config.json on LittleFS
+void configSave();      // Save to /config.json on LittleFS
 String configToJson();  // Serialize current config to JSON string
 bool configApply(const char* json, size_t len);
 extern bool needsConfigSave;  // Apply JSON patch to config

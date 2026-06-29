@@ -1,216 +1,129 @@
 #include "sounds.h"
-#include <SD.h>
 #include <M5CoreS3.h>
 
+void initSoundPlayer() {
+    Serial.println("[Sound] Procedural tones initialized");
+}
+
+void playWavFile(const char* path) {
+    // Legacy support, map common names if possible
+    String name = String(path);
+    name.replace("/sounds/", "");
+    name.replace(".wav", "");
+    playSound(name.c_str());
+}
+
+void playSound(const char* name) {
+    Serial.printf("[Sound] Playing procedural tone: %s\n", name);
+    
+    String sName = String(name);
+    sName.toLowerCase();
+
+    if (sName == "happy") {
+        M5.Speaker.tone(1000, 100); delay(100);
+        M5.Speaker.tone(1500, 150); delay(150);
+        M5.Speaker.tone(2000, 200);
+    } else if (sName == "sad") {
+        M5.Speaker.tone(800, 200); delay(200);
+        M5.Speaker.tone(600, 200); delay(200);
+        M5.Speaker.tone(400, 400);
+    } else if (sName == "alert" || sName == "startup") {
+        M5.Speaker.tone(2000, 100); delay(100);
+        M5.Speaker.tone(2000, 100); delay(100);
+        M5.Speaker.tone(2000, 100);
+    } else if (sName == "eat" || sName == "yummy") {
+        M5.Speaker.tone(1200, 100); delay(150);
+        M5.Speaker.tone(1400, 100); delay(150);
+        M5.Speaker.tone(1600, 100);
+    } else if (sName == "level_up") {
+        M5.Speaker.tone(523, 150); delay(150);
+        M5.Speaker.tone(659, 150); delay(150);
+        M5.Speaker.tone(783, 150); delay(150);
+        M5.Speaker.tone(1046, 300); delay(300);
+    } else if (sName == "purr") {
+        for(int i=0; i<5; i++) {
+            M5.Speaker.tone(100, 50); delay(60);
+            M5.Speaker.tone(120, 50); delay(60);
+        }
+    } else if (sName == "sneeze") {
+        M5.Speaker.tone(3000, 50); delay(100);
+        M5.Speaker.tone(4000, 50); delay(50);
+        M5.Speaker.tone(1000, 200); delay(200);
+    } else if (sName == "snore") {
+        M5.Speaker.tone(150, 400); delay(450);
+        M5.Speaker.tone(100, 600); delay(650);
+    } else if (sName == "whistle") {
+        M5.Speaker.tone(1500, 150); delay(150);
+        M5.Speaker.tone(2500, 300); delay(300);
+    } else if (sName == "hurt") {
+        M5.Speaker.tone(500, 100); delay(100);
+        M5.Speaker.tone(300, 200); delay(200);
+    } else if (sName == "siren") {
+        for(int i=0; i<3; i++) {
+            M5.Speaker.tone(800, 300); delay(300);
+            M5.Speaker.tone(1200, 300); delay(300);
+        }
+    } else if (sName == "laugh") {
+        M5.Speaker.tone(1500, 100); delay(150);
+        M5.Speaker.tone(1400, 100); delay(150);
+        M5.Speaker.tone(1500, 100); delay(150);
+        M5.Speaker.tone(1400, 200); delay(200);
+    } else if (sName == "horn") {
+        M5.Speaker.tone(300, 500); delay(500);
+        M5.Speaker.tone(300, 500); delay(500);
+    } else if (sName == "r2d2") {
+        M5.Speaker.tone(2000, 100); delay(100);
+        M5.Speaker.tone(3000, 150); delay(150);
+        M5.Speaker.tone(1500, 50); delay(50);
+        M5.Speaker.tone(2500, 200); delay(200);
+    } else if (sName == "melody") {
+        M5.Speaker.tone(523, 200); delay(250);
+        M5.Speaker.tone(659, 200); delay(250);
+        M5.Speaker.tone(783, 200); delay(250);
+        M5.Speaker.tone(1046, 400); delay(450);
+    } else if (sName == "kick") {
+        M5.Speaker.tone(100, 100); delay(100);
+    } else if (sName == "snare") {
+        M5.Speaker.tone(600, 50); delay(50);
+        M5.Speaker.tone(800, 100); delay(100);
+    } else if (sName == "hihat") {
+        M5.Speaker.tone(4000, 20); delay(20);
+    } else if (sName == "scratch") {
+        M5.Speaker.tone(2000, 50); delay(50);
+        M5.Speaker.tone(1500, 50); delay(50);
+        M5.Speaker.tone(2500, 100); delay(100);
+    } else {
+        // Default beep
+        M5.Speaker.tone(1000, 200);
+    }
+}
+
 // ═══════════════════════════════════════
-// WAV File Playback from SD Card
+// Async wrapper
 // ═══════════════════════════════════════
 
-// WAV header structure (44 bytes)
-struct WavHeader {
-    char riff[4];           // "RIFF"
-    uint32_t fileSize;
-    char wave[4];           // "WAVE"
-    char fmt[4];            // "fmt "
-    uint32_t fmtSize;
-    uint16_t audioFormat;   // 1 = PCM
-    uint16_t numChannels;
-    uint32_t sampleRate;
-    uint32_t byteRate;
-    uint16_t blockAlign;
-    uint16_t bitsPerSample;
-    char data[4];           // "data"
-    uint32_t dataSize;
-};
-
-// Playback buffer in PSRAM (64KB chunks)
-static uint8_t* wavPlayBuf = nullptr;
-static const size_t WAV_BUF_SIZE = 64 * 1024;
-
-// Async playback state
 static TaskHandle_t soundTaskHandle = nullptr;
 static char asyncSoundName[32] = {0};
 
-void initSoundPlayer() {
-    // Check /sounds/ directory exists
-    if (!SD.exists("/sounds")) {
-        Serial.println("[Sound] /sounds/ directory not found on SD card");
-        SD.mkdir("/sounds");
-        Serial.println("[Sound] Created /sounds/ directory");
-    } else {
-        Serial.println("[Sound] /sounds/ directory found");
-    }
-
-    // Pre-allocate playback buffer in PSRAM
-    wavPlayBuf = (uint8_t*)ps_malloc(WAV_BUF_SIZE);
-    if (!wavPlayBuf) {
-        wavPlayBuf = (uint8_t*)malloc(WAV_BUF_SIZE);
-    }
-    if (wavPlayBuf) {
-        Serial.println("[Sound] Playback buffer allocated");
-    } else {
-        Serial.println("[Sound] WARNING: Failed to allocate playback buffer!");
-    }
-}
-
-// Play a WAV file from an absolute path on SD
-void playWavFile(const char* path) {
-    if (!wavPlayBuf) {
-        Serial.println("[Sound] No playback buffer!");
-        return;
-    }
-
-    File f = SD.open(path, FILE_READ);
-    if (!f) {
-        Serial.printf("[Sound] File not found: %s\n", path);
-        return;
-    }
-
-    // Read WAV header
-    WavHeader hdr;
-    if (f.read((uint8_t*)&hdr, sizeof(WavHeader)) != sizeof(WavHeader)) {
-        Serial.println("[Sound] Failed to read WAV header");
-        f.close();
-        return;
-    }
-
-    // Validate
-    if (memcmp(hdr.riff, "RIFF", 4) != 0 || memcmp(hdr.wave, "WAVE", 4) != 0) {
-        Serial.println("[Sound] Invalid WAV file");
-        f.close();
-        return;
-    }
-
-    uint32_t sampleRate = hdr.sampleRate;
-    uint32_t dataSize = hdr.dataSize;
-
-    Serial.printf("[Sound] Playing: %s (%dHz, %d bytes)\n", path, sampleRate, dataSize);
-
-    // Read and play in chunks
-    uint32_t remaining = dataSize;
-    while (remaining > 0) {
-        size_t toRead = remaining > WAV_BUF_SIZE ? WAV_BUF_SIZE : remaining;
-        size_t bytesRead = f.read(wavPlayBuf, toRead);
-        if (bytesRead == 0) break;
-
-        CoreS3.Speaker.playRaw((int16_t*)wavPlayBuf, bytesRead / 2, sampleRate, false, 1);
-        // Wait for this chunk to finish before loading next
-        while (CoreS3.Speaker.isPlaying()) {
-            delay(1);
-        }
-
-        remaining -= bytesRead;
-    }
-
-    f.close();
-}
-
-// ═══════════════════════════════════════
-// Tone Fallback (when WAV file is missing)
-// ═══════════════════════════════════════
-static void playToneFallback(const char* name) {
-    if (strcmp(name, "beep") == 0) {
-        CoreS3.Speaker.tone(1000, 200);
-    } else if (strcmp(name, "siren") == 0) {
-        for (int i = 0; i < 3; i++) {
-            CoreS3.Speaker.tone(800, 150); delay(200);
-            CoreS3.Speaker.tone(1200, 150); delay(200);
-        }
-    } else if (strcmp(name, "laugh") == 0) {
-        int notes[] = {500, 600, 700, 600, 500, 700, 800};
-        for (int i = 0; i < 7; i++) {
-            CoreS3.Speaker.tone(notes[i], 80); delay(100);
-        }
-    } else if (strcmp(name, "horn") == 0) {
-        CoreS3.Speaker.tone(300, 500);
-    } else if (strcmp(name, "r2d2") == 0) {
-        int freqs[] = {2000, 1500, 2500, 1800, 2200, 1000, 3000, 1200};
-        for (int i = 0; i < 8; i++) {
-            CoreS3.Speaker.tone(freqs[i], 60); delay(80);
-        }
-    } else if (strcmp(name, "melody") == 0 || strcmp(name, "levelup") == 0) {
-        int notes[] = {262, 294, 330, 349, 392, 440, 494, 523};
-        for (int i = 0; i < 8; i++) {
-            CoreS3.Speaker.tone(notes[i], 150); delay(180);
-        }
-    } else if (strcmp(name, "purr") == 0) {
-        for (int i = 0; i < 5; i++) {
-            CoreS3.Speaker.tone(150, 100); delay(120);
-            CoreS3.Speaker.tone(120, 100); delay(120);
-        }
-    } else if (strcmp(name, "sneeze") == 0) {
-        CoreS3.Speaker.tone(2000, 50); delay(100);
-        CoreS3.Speaker.tone(3000, 150);
-    } else if (strcmp(name, "whistle") == 0) {
-        CoreS3.Speaker.tone(1500, 200); delay(250);
-        CoreS3.Speaker.tone(2000, 400);
-    } else if (strcmp(name, "snore") == 0) {
-        CoreS3.Speaker.tone(200, 800); delay(900);
-        CoreS3.Speaker.tone(400, 400);
-    } else if (strcmp(name, "eat") == 0) {
-        for (int i = 0; i < 4; i++) {
-            CoreS3.Speaker.tone(800 + (i*100), 50); delay(60);
-        }
-    } else if (strcmp(name, "startup") == 0) {
-        CoreS3.Speaker.tone(1000, 100); delay(120);
-        CoreS3.Speaker.tone(1500, 100); delay(120);
-        CoreS3.Speaker.tone(2000, 150);
-    } else if (strcmp(name, "kick") == 0) {
-        CoreS3.Speaker.tone(80, 100);
-    } else if (strcmp(name, "snare") == 0) {
-        CoreS3.Speaker.tone(300, 50);
-    } else if (strcmp(name, "hihat") == 0) {
-        CoreS3.Speaker.tone(6000, 30);
-    } else if (strcmp(name, "scratch") == 0) {
-        for (int i = 0; i < 4; i++) {
-            CoreS3.Speaker.tone(1000 + random(2000), 30); delay(40);
-        }
-    } else {
-        // Unknown sound — generic beep
-        CoreS3.Speaker.tone(800, 100);
-    }
-}
-
-// ═══════════════════════════════════════
-// Main playSound — tries WAV first, falls back to tone
-// ═══════════════════════════════════════
-void playSound(const char* name) {
-    // Build path: /sounds/<name>.wav
-    char path[64];
-    snprintf(path, sizeof(path), "/sounds/%s.wav", name);
-
-    if (SD.exists(path)) {
-        playWavFile(path);
-    } else {
-        Serial.printf("[Sound] WAV not found: %s — using tone fallback\n", path);
-        playToneFallback(name);
-    }
-}
-
-// ═══════════════════════════════════════
-// Async playback (FreeRTOS task)
-// ═══════════════════════════════════════
-static void soundTaskFunc(void* param) {
-    const char* name = (const char*)param;
-    playSound(name);
-    soundTaskHandle = nullptr;
-    vTaskDelete(NULL);
-}
-
 void playSoundAsync(const char* name) {
-    // Kill previous task if still running
     if (soundTaskHandle != nullptr) {
-        // Task is already running. Do not kill it as it locks I2S.
+        Serial.println("[Sound] Already playing async!");
         return;
     }
-    strlcpy(asyncSoundName, name, sizeof(asyncSoundName));
-    xTaskCreatePinnedToCore(soundTaskFunc, "sound", 8192, (void*)asyncSoundName, 1, &soundTaskHandle, 0);
-}
-
-void stopSound() {
-    CoreS3.Speaker.stop();
-    if (soundTaskHandle != nullptr) {
-        vTaskDelete(soundTaskHandle);
-        soundTaskHandle = nullptr;
-    }
+    
+    strncpy(asyncSoundName, name, sizeof(asyncSoundName) - 1);
+    
+    xTaskCreatePinnedToCore(
+        [](void* param) {
+            playSound(asyncSoundName);
+            soundTaskHandle = nullptr;
+            vTaskDelete(NULL);
+        },
+        "SoundTask",
+        4096,
+        NULL,
+        1,
+        &soundTaskHandle,
+        0
+    );
 }

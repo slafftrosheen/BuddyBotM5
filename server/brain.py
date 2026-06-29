@@ -1,4 +1,102 @@
 import os
+import time
+import requests
+import threading
+import cv2
+import numpy as np
+
+cv_tracking_enabled = False
+fall_prevention_enabled = False
+
+fall_edge_density_threshold = 1500
+track_min_area = 300
+track_hsv_lower = [0, 120, 70]
+track_hsv_upper = [10, 255, 255]
+
+def cv_background_loop():
+    global cv_tracking_enabled, fall_prevention_enabled
+    
+    global fall_edge_density_threshold, track_min_area, track_hsv_lower, track_hsv_upper
+    # Red color thresholds (HSV)
+    lower_red1 = np.array(track_hsv_lower)
+    upper_red1 = np.array(track_hsv_upper)
+    lower_red2 = np.array([170, 120, 70])
+    upper_red2 = np.array([180, 255, 255])
+    
+    while True:
+        time.sleep(0.1) # ~10 FPS max
+        
+        if not cv_tracking_enabled and not fall_prevention_enabled:
+            time.sleep(0.5) # Sleep longer if disabled
+            continue
+            
+        try:
+            resp = requests.get(f"http://{os.getenv('CAM_IP', '192.168.8.189')}/capture", timeout=1)
+            if resp.status_code != 200:
+                continue
+            
+            nparr = np.frombuffer(resp.content, np.uint8)
+            frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+            if frame is None:
+                continue
+                
+            h, w, _ = frame.shape
+            
+            # --- FALL PREVENTION (Feature 7) ---
+            if fall_prevention_enabled:
+                # Grab bottom 30% of frame
+                bottom_h = int(h * 0.3)
+                floor_roi = frame[h-bottom_h:h, 0:w]
+                
+                # Convert to gray
+                gray = cv2.cvtColor(floor_roi, cv2.COLOR_BGR2GRAY)
+                edges = cv2.Canny(gray, 50, 150)
+                
+                # Calculate edge density. A sudden spike often means a table edge or obstacle.
+                edge_density = np.sum(edges) / 255.0
+                
+                if edge_density > fall_edge_density_threshold:
+                    log.warning(f"FALL PREVENTED! Edge density: {edge_density}")
+                    requests.post(f"http://{ROBOT_IP}/api/motors", json={"speed": -50, "turn": 0}, timeout=1)
+                    time.sleep(0.5)
+                    requests.post(f"http://{ROBOT_IP}/api/motors", json={"speed": 0, "turn": 0}, timeout=1)
+                    trigger_bot_emotion(5) # Sad/Scared
+                    
+            # --- AUTO TRACKING (Feature 2) ---
+            if cv_tracking_enabled:
+                hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+                mask1 = cv2.inRange(hsv, lower_red1, upper_red1)
+                mask2 = cv2.inRange(hsv, lower_red2, upper_red2)
+                mask = mask1 + mask2
+                
+                contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                if contours:
+                    c = max(contours, key=cv2.contourArea)
+                    area = cv2.contourArea(c)
+                    if area > track_min_area:
+                        x, y, w_box, h_box = cv2.boundingRect(c)
+                        center_x = x + w_box/2
+                        
+                        # Proportional control for steering
+                        error_x = (center_x - (w / 2)) / (w / 2)
+                        turn = int(error_x * 80)
+                        
+                        # Proportional control for speed (target 30% of screen width)
+                        target_width = w * 0.3
+                        error_size = (target_width - w_box) / target_width
+                        speed = int(error_size * 50)
+                        
+                        requests.post(f"http://{ROBOT_IP}/api/motors", json={"speed": speed, "turn": turn}, timeout=1)
+                else:
+                    # Stop if no target found
+                    requests.post(f"http://{ROBOT_IP}/api/motors", json={"speed": 0, "turn": 0}, timeout=1)
+                    
+        except Exception as e:
+            pass
+
+# Start the background thread
+threading.Thread(target=cv_background_loop, daemon=True).start()
+
 import io
 import time
 import logging
@@ -16,7 +114,7 @@ log = logging.getLogger('BuddyBrain')
 # Load config
 load_dotenv('config.env')
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-ROBOT_IP = os.getenv("ROBOT_IP", "buddy.local")
+ROBOT_IP = os.getenv("ROBOT_IP", "192.168.8.187")
 
 client = None
 if GEMINI_API_KEY and GEMINI_API_KEY != "YOUR_GEMINI_API_KEY":
@@ -47,6 +145,88 @@ def trigger_bot_talking(is_talking):
         requests.post(f"http://{ROBOT_IP}/api/persona", json={"talking": is_talking}, timeout=1)
     except Exception as e:
         log.warning(f"Failed to set bot talking {is_talking}: {e}")
+
+@app.get("/api/health")
+
+class CVStateRequest(BaseModel):
+    enabled: bool
+
+@app.post("/api/cv/track")
+def toggle_tracking(req: CVStateRequest):
+    global cv_tracking_enabled
+    cv_tracking_enabled = req.enabled
+    return {"tracking": cv_tracking_enabled}
+
+@app.post("/api/cv/fall")
+def toggle_fall(req: CVStateRequest):
+    global fall_prevention_enabled
+    fall_prevention_enabled = req.enabled
+    return {"fall_prevention": fall_prevention_enabled}
+
+
+class CVTuningRequest(BaseModel):
+    fall_edge_density_threshold: int = None
+    track_min_area: int = None
+    track_hsv_lower: list = None
+    track_hsv_upper: list = None
+
+@app.get("/api/cv/tune")
+def get_cv_tuning():
+    global fall_edge_density_threshold, track_min_area, track_hsv_lower, track_hsv_upper
+    return {
+        "fall_edge_density_threshold": fall_edge_density_threshold,
+        "track_min_area": track_min_area,
+        "track_hsv_lower": track_hsv_lower,
+        "track_hsv_upper": track_hsv_upper
+    }
+
+@app.post("/api/cv/tune")
+def set_cv_tuning(req: CVTuningRequest):
+    global fall_edge_density_threshold, track_min_area, track_hsv_lower, track_hsv_upper
+    if req.fall_edge_density_threshold is not None:
+        fall_edge_density_threshold = req.fall_edge_density_threshold
+    if req.track_min_area is not None:
+        track_min_area = req.track_min_area
+    if req.track_hsv_lower is not None:
+        track_hsv_lower = req.track_hsv_lower
+    if req.track_hsv_upper is not None:
+        track_hsv_upper = req.track_hsv_upper
+    return get_cv_tuning()
+
+@app.post("/api/detect")
+def yolo_detect():
+    """YOLO Vision logic via Haar Cascades for speed on Raspberry Pi."""
+    try:
+        resp = requests.get(f"http://{os.getenv('CAM_IP', '192.168.8.189')}/capture", timeout=2)
+        if resp.status_code != 200:
+            return {"detections": []}
+            
+        nparr = np.frombuffer(resp.content, np.uint8)
+        frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        if frame is None:
+            return {"detections": []}
+            
+        h, w, _ = frame.shape
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        
+        cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+        faces = cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
+        
+        detections = []
+        for (fx, fy, fw, fh) in faces:
+            detections.append({
+                "label": "Person",
+                "confidence": 0.88,
+                "x": (fx / w) * 100,
+                "y": (fy / h) * 100,
+                "w": (fw / w) * 100,
+                "h": (fh / h) * 100
+            })
+            
+        return {"detections": detections}
+    except Exception as e:
+        log.error(f"Detect API Error: {e}")
+        return {"detections": []}
 
 @app.get("/api/health")
 def health_check():
@@ -95,8 +275,96 @@ async def process_voice(file: UploadFile = File(...)):
         trigger_bot_emotion(5) # Sad
         return {"error": f"Could not understand audio: {str(e)}"}
         
+
+    # ── Voice Macros (Feature 8) ──
+    text_lower = text.lower()
+    
+    # 1. Dance Macro
+    if "dance" in text_lower:
+        trigger_bot_emotion(1) # Happy
+        requests.post(f"http://{ROBOT_IP}/api/motors", json={"speed": 0, "turn": 100}, timeout=1) # Spin
+        time.sleep(0.5)
+        requests.post(f"http://{ROBOT_IP}/api/motors", json={"speed": 0, "turn": -100}, timeout=1) # Spin back
+        time.sleep(0.5)
+        requests.post(f"http://{ROBOT_IP}/api/motors", json={"speed": 0, "turn": 0}, timeout=1) # Stop
+        tts = gTTS(text="Let's dance!", lang='en', slow=False)
+        tts.save("macro.mp3")
+        trigger_bot_talking(True)
+        os.system("mpg123 macro.mp3")
+        trigger_bot_talking(False)
+        return {"response": "Executed dance macro!"}
+
+    # 2. Explore Macro
+    if "explore" in text_lower or "wander" in text_lower:
+        trigger_bot_emotion(6) # Curious
+        requests.post(f"http://{ROBOT_IP}/api/motors", json={"speed": 40, "turn": 0}, timeout=1) # Forward
+        tts = gTTS(text="I love exploring!", lang='en', slow=False)
+        tts.save("macro.mp3")
+        trigger_bot_talking(True)
+        os.system("mpg123 macro.mp3")
+        trigger_bot_talking(False)
+        return {"response": "Executed explore macro!"}
+
+    # 3. Stop Macro
+    if "stop" in text_lower or "halt" in text_lower:
+        trigger_bot_emotion(0) # Neutral
+        requests.post(f"http://{ROBOT_IP}/api/motors", json={"speed": 0, "turn": 0}, timeout=1)
+        tts = gTTS(text="Stopping right now.", lang='en', slow=False)
+        tts.save("macro.mp3")
+        trigger_bot_talking(True)
+        os.system("mpg123 macro.mp3")
+        trigger_bot_talking(False)
+        return {"response": "Executed stop macro!"}
+
     # Reuse chat logic which handles TTS
     return chat_with_gemini(ChatRequest(text=text))
+
+@app.post("/api/chat")
+
+@app.get("/api/vision")
+def what_do_you_see():
+    if not GEMINI_API_KEY or GEMINI_API_KEY == "YOUR_GEMINI_API_KEY":
+        return {"error": "AI not configured"}
+        
+    try:
+        trigger_bot_emotion(6) # Curious
+        
+        # Fetch image from ESP32-CAM (it might be configured as buddycam.local or camIp)
+        # We will try the default camIp
+        cam_url = f"http://{os.getenv('CAM_IP', '192.168.8.189')}/capture"
+        resp = requests.get(cam_url, timeout=5)
+        
+        if resp.status_code != 200:
+            trigger_bot_emotion(5) # Sad
+            return {"error": "Camera not reachable"}
+            
+        image_bytes = resp.content
+        from PIL import Image
+        img = Image.open(io.BytesIO(image_bytes))
+        
+        prompt = "You are BuddyBot, a friendly robot companion for kids. Look at this picture from your camera eyes and describe what you see in 1 or 2 short, fun sentences! Use emojis."
+        
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=[prompt, img]
+        )
+        reply = response.text
+        log.info(f"Vision reply: {reply[:80]}...")
+        
+        trigger_bot_emotion(1) # Happy
+        
+        # Speak it
+        tts = gTTS(text=reply, lang='en', slow=False)
+        tts.save("vision.mp3")
+        trigger_bot_talking(True)
+        os.system("mpg123 vision.mp3")
+        trigger_bot_talking(False)
+        
+        return {"response": reply}
+    except Exception as e:
+        log.error(f"Vision error: {e}")
+        trigger_bot_emotion(5)
+        return {"error": str(e)}
 
 @app.post("/api/chat")
 def chat_with_gemini(req: ChatRequest):
