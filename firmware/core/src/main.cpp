@@ -1,6 +1,6 @@
 #include <Arduino.h>
 #include <LittleFS.h>
-#include <M5CoreS3.h>
+#include <M5Unified.h>
 #include <WiFi.h>
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
@@ -19,6 +19,12 @@
 #include "config.h"
 #include "sounds.h"
 #include "persona.h"
+#include "motor.h"
+#include "api.h"
+#include <ESP32Servo.h>
+
+Servo gpioServoL;
+Servo gpioServoR;
 
 // IMU State
 float imu_pitch = 0.0;
@@ -52,475 +58,10 @@ AsyncWebServer server(80);
 Adafruit_BME680 bme;
 
 // ═══════════════════════════════════════
-// RollerCAN I2C Protocol
-// ═══════════════════════════════════════
-const uint8_t ROLLER_M1_ADDR = 0x64;
-const uint8_t ROLLER_M2_ADDR = 0x65;
-
-// ═══════════════════════════════════════
-// 8-Channel Servo Hat I2C Protocol
-// ═══════════════════════════════════════
-// 8-Channel Servo Hat I2C Protocol (Unit 8Servos uses 0x25)
-const uint8_t SERVO_HAT_ADDR = 0x25;
-
-bool motorsInitialized = false;
-
-// ═══════════════════════════════════════
-// RollerCAN Motor Control
-// ═══════════════════════════════════════
-void rollerSetConfig(uint8_t addr, uint8_t output, uint8_t mode) {
-    Wire.beginTransmission(addr);
-    Wire.write(0x00);
-    Wire.write(output);
-    Wire.write(mode);
-    Wire.endTransmission();
-}
-
-void rollerSetSpeed(uint8_t addr, int32_t speedRPM100) {
-    Wire.beginTransmission(addr);
-    Wire.write(0x40);
-    Wire.write((uint8_t)(speedRPM100 & 0xFF));
-    Wire.write((uint8_t)((speedRPM100 >> 8) & 0xFF));
-    Wire.write((uint8_t)((speedRPM100 >> 16) & 0xFF));
-    Wire.write((uint8_t)((speedRPM100 >> 24) & 0xFF));
-    Wire.endTransmission();
-}
-
-void initMotors() {
-    rollerSetConfig(ROLLER_M1_ADDR, 1, 1);
-    delay(10);
-    rollerSetConfig(ROLLER_M2_ADDR, 1, 1);
-    delay(10);
-    rollerSetSpeed(ROLLER_M1_ADDR, 0);
-    rollerSetSpeed(ROLLER_M2_ADDR, 0);
-    motorsInitialized = true;
-}
-
-// Motor speed with inversion from config
-void setMotorSpeeds(int speedPctM1, int speedPctM2) {
-    if (buddyConfig.motorInvertL) speedPctM1 = -speedPctM1;
-    if (buddyConfig.motorInvertR) speedPctM2 = -speedPctM2;
-    int32_t rpm100_m1 = (int32_t)speedPctM1 * buddyConfig.motorMaxRPM;
-    int32_t rpm100_m2 = (int32_t)speedPctM2 * buddyConfig.motorMaxRPM;
-    rollerSetSpeed(ROLLER_M1_ADDR, rpm100_m1);
-    rollerSetSpeed(ROLLER_M2_ADDR, rpm100_m2);
-}
-
-// ═══════════════════════════════════════
-// 8-Servo Hat Control
-// ═══════════════════════════════════════
-void setServoAngle(uint8_t channel, uint8_t angle) {
-    if (channel > 7) return;
-    if (buddyConfig.servoInvert[channel]) {
-        angle = 180 - angle;
-    }
-    
-    Wire.beginTransmission(SERVO_HAT_ADDR);
-    Wire.write(0x50 + channel); // Servo Angle 8-bit Register
-    Wire.write(angle);
-    Wire.endTransmission();
-}
-
-// ═══════════════════════════════════════
-// Color helpers
-// ═══════════════════════════════════════
-uint16_t hexToColor565(const char* hex) {
-    if (hex[0] == '#') hex++;
-    long rgb = strtol(hex, NULL, 16);
-    uint8_t r = (rgb >> 16) & 0xFF;
-    uint8_t g = (rgb >> 8) & 0xFF;
-    uint8_t b = rgb & 0xFF;
-    return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
-}
-
-
-
-// ═══════════════════════════════════════
-// WiFi Init (from config)
-// ═══════════════════════════════════════
-void initWiFi() {
-    CoreS3.Display.fillScreen(TFT_BLACK);
-    CoreS3.Display.setCursor(0, 0);
-    CoreS3.Display.setTextSize(2);
-    CoreS3.Display.println("Connecting to WiFi...");
-
-    WiFi.setHostname("buddy");
-    WiFi.disconnect(true, true);
-    delay(100);
-    WiFi.mode(WIFI_STA);
-    
-    if (strlen(buddyConfig.wifi_ssid1) > 0) {
-        wifiMulti.addAP(buddyConfig.wifi_ssid1, buddyConfig.wifi_pass1);
-        CoreS3.Display.printf("  SSID1: %s\n", buddyConfig.wifi_ssid1);
-    }
-    if (strlen(buddyConfig.wifi_ssid2) > 0) {
-        wifiMulti.addAP(buddyConfig.wifi_ssid2, buddyConfig.wifi_pass2);
-        CoreS3.Display.printf("  SSID2: %s\n", buddyConfig.wifi_ssid2);
-    }
-    if (strlen(buddyConfig.wifi_ssid3) > 0) {
-        wifiMulti.addAP(buddyConfig.wifi_ssid3, buddyConfig.wifi_pass3);
-        CoreS3.Display.printf("  SSID3: %s\n", buddyConfig.wifi_ssid3);
-    }
-
-    unsigned long startAttempt = millis();
-    while (wifiMulti.run() != WL_CONNECTED) {
-        delay(100);
-        CoreS3.Display.print(".");
-        if (millis() - startAttempt > 15000) {
-            // Captive portal fallback
-            CoreS3.Display.println("\nNo WiFi! Starting AP...");
-            WiFi.mode(WIFI_AP);
-            WiFi.softAP("BuddyBot-Setup", "buddy123");
-            CoreS3.Display.print("AP IP: ");
-            CoreS3.Display.println(WiFi.softAPIP());
-            return;
-        }
-    }
-
-    CoreS3.Display.println("\nConnected!");
-    
-    if (MDNS.begin("buddy")) {
-        CoreS3.Display.println("MDNS: buddy.local");
-    }
-}
-
-// ═══════════════════════════════════════
-// Web Server Init
-// ═══════════════════════════════════════
-void initServer() {
-    // Serve Web UI from SD Card
-    server.serveStatic("/", LittleFS, "/").setDefaultFile("index.html").setCacheControl("max-age=0, no-cache, no-store, must-revalidate");
-
-    // ── File Upload Handler ──
-    server.on("/api/upload", HTTP_POST, [](AsyncWebServerRequest *request){
-        if (request->_tempObject != NULL) {
-            request->send(200, "text/plain", "Upload Complete");
-        } else {
-            request->send(500, "text/plain", "Failed to open file on SD Card");
-        }
-    }, [](AsyncWebServerRequest *request, const String& filename, size_t index, uint8_t *data, size_t len, bool final){
-        static File uploadFile;
-        if (!index) {
-            String path = "/" + filename;
-            bool isMedia = path.endsWith(".jpg") || path.endsWith(".png") || path.endsWith(".wav");
-            fs::FS &targetFS = LittleFS;
-            if (targetFS.exists(path)) targetFS.remove(path);
-            uploadFile = targetFS.open(path, FILE_WRITE);
-            if (uploadFile) {
-                request->_tempObject = (void*)1;
-            } else {
-                request->_tempObject = NULL;
-            }
-        }
-        if (uploadFile) {
-            uploadFile.write(data, len);
-            if (final) {
-                uploadFile.close();
-            }
-        }
-    });
-
-    // ── GET /api/telemetry ──
-    server.on("/api/telemetry", HTTP_GET, [](AsyncWebServerRequest *request){
-        JsonDocument doc;
-        if (bme.performReading()) {
-            doc["temp"] = bme.temperature;
-            doc["hum"] = bme.humidity;
-            doc["pres"] = bme.pressure / 100.0;
-            doc["gas"] = bme.gas_resistance;
-        } else {
-            doc["temp"] = 0; doc["hum"] = 0; doc["pres"] = 0; doc["gas"] = 0;
-        }
-        doc["pitch"] = imu_pitch;
-        doc["roll"] = imu_roll;
-        doc["heap"] = ESP.getFreeHeap();
-        doc["rssi"] = WiFi.RSSI();
-        doc["battery"] = CoreS3.Power.getBatteryLevel();
-        doc["uptime"] = millis() / 1000;
-        doc["hasServo"] = buddyConfig.hasServo;
-        doc["hasCam"] = buddyConfig.hasCam;
-        doc["hasPi"] = buddyConfig.hasPi;
-        doc["xp"] = buddyConfig.xp;
-        doc["level"] = buddyConfig.level;
-        String response;
-        serializeJson(doc, response);
-        request->send(200, "application/json", response);
-    });
-
-    // ── GET /api/config ──
-    server.on("/api/config", HTTP_GET, [](AsyncWebServerRequest *request){
-        request->send(200, "application/json", configToJson());
-    });
-
-    // ── POST /api/config ──
-    server.on("/api/config", HTTP_POST, [](AsyncWebServerRequest *request){
-    }, NULL, [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total){
-        if (configApply((const char*)data, len)) {
-            persona.applyConfig();
-            request->send(200, "text/plain", "Config Saved");
-        } else {
-            request->send(400, "text/plain", "Bad Config JSON");
-        }
-    });
-
-    // ── POST /api/motors ──
-    server.on("/api/motors", HTTP_POST, [](AsyncWebServerRequest *request){
-    }, NULL, [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total){
-        JsonDocument doc;
-        if (!deserializeJson(doc, data, len)) {
-            target_speed = doc["speed"];
-            target_turn = doc["turn"];
-            int trimL = doc["trimL"] | buddyConfig.motorTrimL;
-            int trimR = doc["trimR"] | buddyConfig.motorTrimR;
-
-            // Optional manual trim (will be mostly obsolete with PID)
-            target_m1 = target_speed + target_turn + trimL;
-            target_m2 = target_speed - target_turn + trimR;
-            
-            // Activate Heading Lock if going straight
-            if (abs(target_speed) > 10 && abs(target_turn) < 5) {
-                if (!heading_locked) {
-                    yaw_target = imu_yaw;
-                    heading_locked = true;
-                }
-            } else {
-                heading_locked = false;
-            }
-
-            request->send(200, "text/plain", "OK");
-            lastActivityTime = millis();
-        } else {
-            request->send(400, "text/plain", "Bad Request");
-        }
-    });
-
-    // ── POST /api/servo ──
-    server.on("/api/servo", HTTP_POST, [](AsyncWebServerRequest *request){
-    }, NULL, [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total){
-        JsonDocument doc;
-        if (!deserializeJson(doc, data, len)) {
-            if (!doc["channel"].isNull() && !doc["angle"].isNull()) {
-                uint8_t channel = doc["channel"];
-                uint8_t angle = doc["angle"];
-                setServoAngle(channel, angle);
-                request->send(200);
-            } else {
-                request->send(400, "text/plain", "Missing channel or angle");
-            }
-        } else {
-            request->send(400);
-        }
-    });
-
-    // ── POST /api/persona ──
-    server.on("/api/persona", HTTP_POST, [](AsyncWebServerRequest *request){
-    }, NULL, [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total){
-        if (index + len == total) {
-            JsonDocument doc;
-            if (!deserializeJson(doc, data, len)) {
-                if (!doc["emotion"].isNull()) {
-                    persona.setEmotion((EmotionState)(doc["emotion"].as<int>()));
-                }
-                if (!doc["eyeColor"].isNull()) {
-                    buddyConfig.eyeColorMain = hexToColor565(doc["eyeColor"]);
-                    needsConfigSave = true;
-                }
-                if (!doc["talking"].isNull()) {
-                    if (doc["talking"].as<bool>()) {
-                        persona.startTalking();
-                    } else {
-                        persona.stopTalking();
-                    }
-                }
-                if (!doc["blinkRate"].isNull()) {
-                    buddyConfig.blinkRate = doc["blinkRate"] | 3000;
-                    needsConfigSave = true;
-                }
-                
-                // Immediately apply new colors, eye size, or blink rates
-                persona.applyConfig();
-                
-                lastActivityTime = millis();
-                request->send(200, "text/plain", "OK");
-            } else {
-                request->send(400, "text/plain", "Bad Request");
-            }
-        }
-    });
-
-    // ── POST /api/xp ──
-    server.on("/api/xp", HTTP_POST, [](AsyncWebServerRequest *request){
-    }, NULL, [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total){
-        if (index + len == total) {
-            JsonDocument doc;
-            if (!deserializeJson(doc, data, len)) {
-                if (!doc["add"].isNull()) {
-                    int add = doc["add"];
-                    buddyConfig.xp += add;
-                    
-                    int newLevel = (buddyConfig.xp / 100) + 1;
-                    if (newLevel > buddyConfig.level) {
-                        buddyConfig.level = newLevel;
-                        persona.setEmotion(EMO_EXCITED); // Celebrate!
-                        playSoundAsync("level_up");
-                        
-                        // Dynamically change eye color based on level
-                        if (newLevel == 2) buddyConfig.eyeColorMain = 0x07E0; // Green
-                        else if (newLevel == 3) buddyConfig.eyeColorMain = 0x001F; // Blue
-                        else if (newLevel == 4) buddyConfig.eyeColorMain = 0xF800; // Red
-                        else if (newLevel >= 5) buddyConfig.eyeColorMain = 0xFD20; // Orange/Gold
-                        
-                        // Eyes grow slightly as it levels up
-                        buddyConfig.eyeSizeX = min(100, buddyConfig.eyeSizeX + 4);
-                        buddyConfig.eyeSizeY = min(100, buddyConfig.eyeSizeY + 4);
-                    }
-                    needsConfigSave = true;
-                }
-                
-                // Return current stats
-                JsonDocument resDoc;
-                resDoc["xp"] = buddyConfig.xp;
-                resDoc["level"] = buddyConfig.level;
-                String resStr;
-                serializeJson(resDoc, resStr);
-                
-                request->send(200, "application/json", resStr);
-            } else {
-                request->send(400, "text/plain", "Bad Request");
-            }
-        }
-    });
-
-    // ── POST /api/sound ──
-    server.on("/api/sound", HTTP_POST, [](AsyncWebServerRequest *request){
-    }, NULL, [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total){
-        JsonDocument doc;
-        if (!deserializeJson(doc, data, len)) {
-            const char* sound = doc["sound"] | "beep";
-            playSoundAsync(sound);
-            request->send(200, "text/plain", "OK");
-            lastActivityTime = millis();
-        } else {
-            request->send(400, "text/plain", "Bad Request");
-        }
-    });
-
-    // ── GET /api/sounds ──
-    server.on("/api/sounds", HTTP_GET, [](AsyncWebServerRequest *request){
-        JsonDocument doc;
-        JsonArray arr = doc["sounds"].to<JsonArray>();
-        arr.add("happy");
-        arr.add("sad");
-        arr.add("alert");
-        arr.add("eat");
-        arr.add("startup");
-        String response;
-        serializeJson(doc, response);
-        request->send(200, "application/json", response);
-    });
-
-    // ── GET /api/action ──
-    server.on("/api/action", HTTP_GET, [](AsyncWebServerRequest *request){
-        if (request->hasParam("cmd")) {
-            String cmd = request->getParam("cmd")->value();
-            if (cmd == "treat") {
-                // Non-blocking treat animation via FreeRTOS task
-                xTaskCreatePinnedToCore([](void* param) {
-                    playSoundAsync("eat");
-                    setMotorSpeeds(50, -50);
-                    vTaskDelay(pdMS_TO_TICKS(150));
-                    setMotorSpeeds(-50, 50);
-                    vTaskDelay(pdMS_TO_TICKS(150));
-                    setMotorSpeeds(0, 0);
-                    persona.setEmotion(EMO_HAPPY);
-                    vTaskDelete(NULL);
-                }, "treat", 4096, NULL, 1, NULL, 0);
-                lastActivityTime = millis();
-                request->send(200, "text/plain", "Yummy");
-                return;
-            }
-        }
-        request->send(400, "text/plain", "Invalid Action");
-    });
-
-
-
-
-
-    // ── Web OTA (/update) ──
-    server.on("/update", HTTP_GET, [](AsyncWebServerRequest *request){
-        String html = "<!DOCTYPE html><html><head><title>BuddyBot Web OTA</title>";
-        html += "<style>body{font-family:sans-serif;background:#2c3e50;color:white;text-align:center;padding:50px;}";
-        html += ".card{background:#34495e;padding:20px;border-radius:10px;display:inline-block;}";
-        html += "input[type=submit]{background:#e74c3c;color:white;border:none;padding:10px 20px;border-radius:5px;cursor:pointer;font-size:16px;}</style></head>";
-        html += "<body><h1>🤖 BuddyBot Firmware & FS Update</h1>";
-        html += "<div class='card'><form method='POST' action='/update' enctype='multipart/form-data'>";
-        html += "<p>Select <b>firmware.bin</b> (U_FLASH) or <b>littlefs.bin</b> (U_SPIFFS):</p>";
-        html += "<input type='file' name='update' style='margin-bottom:20px;'><br>";
-        html += "<input type='submit' value='Upload & Flash'>";
-        html += "</form></div></body></html>";
-        request->send(200, "text/html", html);
-    });
-
-    server.on("/update", HTTP_POST, [](AsyncWebServerRequest *request){
-        bool shouldReboot = !Update.hasError();
-        AsyncWebServerResponse *response = request->beginResponse(200, "text/plain", shouldReboot ? "OK: Rebooting..." : "FAIL: Update Error");
-        response->addHeader("Connection", "close");
-        request->send(response);
-        if (shouldReboot) {
-            delay(1000);
-            esp_restart();
-        }
-    }, [](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final){
-        if(!index){
-            Serial.printf("[OTA] Update Start: %s\n", filename.c_str());
-            // If filename has 'littlefs' or 'spiffs', treat as FS
-            int cmd = (filename.indexOf("littlefs") >= 0 || filename.indexOf("spiffs") >= 0 || filename.indexOf("fs") >= 0) ? U_SPIFFS : U_FLASH;
-            
-            // Set update size to max possible depending on type
-            size_t updateSize = (cmd == U_FLASH) ? (ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000 : UPDATE_SIZE_UNKNOWN;
-            
-            if(!Update.begin(updateSize, cmd)){
-                Update.printError(Serial);
-            }
-        }
-        if(!Update.hasError()){
-            if(Update.write(data, len) != len){
-                Serial.println("[OTA] Write failed.");
-                Update.printError(Serial);
-            }
-        }
-        if(final){
-            if(Update.end(true)){
-                Serial.printf("[OTA] Update Success: %uB\n", index+len);
-            } else {
-                Update.printError(Serial);
-            }
-        }
-    });
-
-    // ── POST /api/reboot ──
-
-    server.on("/api/reboot", HTTP_POST, [](AsyncWebServerRequest *request){
-        request->send(200, "text/plain", "Rebooting...");
-        delay(500);
-        esp_restart();
-    });
-
-    server.begin();
-    CoreS3.Display.println("Web Server Started");
-
-    ArduinoOTA.setHostname("BuddyBot-Core");
-    ArduinoOTA.begin();
-}
-
-// ═══════════════════════════════════════
-// Setup
-// ═══════════════════════════════════════
 void setup() {
     auto cfg = M5.config();
     cfg.internal_mic = false;
-    CoreS3.begin(cfg); // Use CoreS3.begin() instead of M5.begin() to properly initialize AW9523 on CoreS3! // Use CoreS3.begin() instead of M5.begin() to properly initialize AW9523 on CoreS3!
+    M5.begin(cfg); // Use M5.begin() instead of M5.begin() to properly initialize AW9523 on M5! // Use M5.begin() instead of M5.begin() to properly initialize AW9523 on M5!
 
     int sda = M5.Ex_I2C.getSDA();
     int scl = M5.Ex_I2C.getSCL();
@@ -543,13 +84,16 @@ void setup() {
 
     // Initialize LittleFS for Web UI
     if (!LittleFS.begin(true)) {
-        CoreS3.Display.println("LittleFS Mount FAILED");
+        M5.Display.println("LittleFS Mount FAILED");
     } else {
-        CoreS3.Display.println("LittleFS: MOUNTED OK");
+        M5.Display.println("LittleFS: MOUNTED OK");
     }
 
     // Load config from LittleFS (or create defaults)
     configLoad();
+
+    // Set screen rotation from config
+    M5.Display.setRotation(buddyConfig.screenRotation);
 
     // Apply config values
     M5.Speaker.setVolume(buddyConfig.speakerVolume);
@@ -562,27 +106,27 @@ void setup() {
 
     // Initialize BME680
     if (!bme.begin(0x76)) {
-        CoreS3.Display.println("BME680: NOT FOUND");
+        M5.Display.println("BME680: NOT FOUND");
     } else {
         bme.setTemperatureOversampling(BME680_OS_8X);
         bme.setHumidityOversampling(BME680_OS_2X);
         bme.setPressureOversampling(BME680_OS_4X);
         bme.setIIRFilterSize(BME680_FILTER_SIZE_3);
         bme.setGasHeater(320, 150);
-        CoreS3.Display.println("BME680: OK");
+        M5.Display.println("BME680: OK");
     }
 
     // Initialize RollerCAN motors
     initMotors();
-    CoreS3.Display.println("Motors: INIT");
+    M5.Display.println("Motors: INIT");
 
     // Initialize all servos to stop (90)
     for (int i = 0; i < 8; i++) {
         setServoAngle(i, 90);
     }
-    CoreS3.Display.println("Servos: STOP");
+    M5.Display.println("Servos: STOP");
 
-    CoreS3.Display.printf("HW: Core%s%s\n", 
+    M5.Display.printf("HW: Core%s%s\n", 
         buddyConfig.hasServo ? "+Servo" : "",
         buddyConfig.hasPi ? "+Pi" : "");
 
@@ -601,8 +145,31 @@ void loop() {
         configSave();
         needsConfigSave = false;
     }
-    CoreS3.update();
+    M5.update();
     ArduinoOTA.handle();
+
+    // Sleep Schedule Check
+    m5::rtc_datetime_t dt_rtc;
+    bool is_sleeping = false;
+    if (M5.Rtc.getDateTime(&dt_rtc)) {
+        int cur_min = dt_rtc.time.hours * 60 + dt_rtc.time.minutes;
+        int sleep_min = buddyConfig.sleepStartH * 60 + buddyConfig.sleepStartM;
+        int wake_min = buddyConfig.wakeStartH * 60 + buddyConfig.wakeStartM;
+        
+        if (sleep_min < wake_min) {
+            if (cur_min >= sleep_min && cur_min < wake_min) is_sleeping = true;
+        } else {
+            if (cur_min >= sleep_min || cur_min < wake_min) is_sleeping = true;
+        }
+    }
+    
+    if (is_sleeping) {
+        M5.Display.setBrightness(1); // Dim screen
+        target_speed = 0;
+        target_turn = 0;
+    } else {
+        M5.Display.setBrightness(255);
+    }
 
     // IMU processing
     unsigned long now = millis();
@@ -617,8 +184,19 @@ void loop() {
         ay = imu_data.accel.y;
         az = imu_data.accel.z;
         
-        imu_pitch = ax; 
-        imu_roll = ay;
+        imu_pitch = atan2(-ax, sqrt(ay * ay + az * az)) * 180.0 / PI;
+        imu_roll = atan2(ay, az) * 180.0 / PI;
+        
+        float accel_mag = sqrt(ax*ax + ay*ay + az*az);
+        if (accel_mag > 2.5) {
+            static unsigned long lastShakeTime = 0;
+            if (millis() - lastShakeTime > 2000) {
+                persona.setEmotion(EMO_ANGRY);
+                playSoundAsync("alert");
+                lastShakeTime = millis();
+                lastActivityTime = millis();
+            }
+        }
         
         // Approximate Yaw from Gyro (requires filtering for real use)
         if (last_imu_time > 0 && dt > 0) {
@@ -736,8 +314,8 @@ void loop() {
     }
 
     // Touch: cycle emotions on tap
-    if (CoreS3.Touch.getCount() > 0) {
-        auto t = CoreS3.Touch.getDetail();
+    if (M5.Touch.getCount() > 0) {
+        auto t = M5.Touch.getDetail();
         if (t.wasClicked()) {
             static int currentEmotionIdx = 0;
             currentEmotionIdx = (currentEmotionIdx + 1) % 12;

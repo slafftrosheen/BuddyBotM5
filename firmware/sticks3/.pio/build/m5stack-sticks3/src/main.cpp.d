@@ -343,4 +343,14 @@
  .pio/libdeps/m5stack-sticks3/Adafruit\ BusIO/Adafruit_SPIDevice.h \
  .pio/libdeps/m5stack-sticks3/Adafruit\ BME680\ Library/bme68x.h \
  .pio/libdeps/m5stack-sticks3/Adafruit\ BME680\ Library/bme68x_defs.h \
- src/config.h src/sounds.h src/persona.h src/M5Stack_RoboEyes.h
+ C:/Users/Slaff/BuddyBotM5/firmware/shared/lib/BuddyBotCore/src/config.h \
+ C:/Users/Slaff/BuddyBotM5/firmware/shared/lib/BuddyBotCore/src/sounds.h \
+ C:/Users/Slaff/BuddyBotM5/firmware/shared/lib/BuddyBotCore/src/persona.h \
+ C:/Users/Slaff/BuddyBotM5/firmware/shared/lib/BuddyBotCore/src/M5Stack_RoboEyes.h \
+ C:/Users/Slaff/BuddyBotM5/firmware/shared/lib/BuddyBotCore/src/motor.h \
+ C:/Users/Slaff/BuddyBotM5/firmware/shared/lib/BuddyBotCore/src/api.h \
+ .pio/libdeps/m5stack-sticks3/ESP32Servo/src/ESP32Servo.h \
+ .pio/libdeps/m5stack-sticks3/ESP32Servo/src/ESP32PWM.h \
+ C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32/cores/esp32/esp32-hal-ledc.h \
+ C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32s3/include/driver/include/driver/mcpwm.h \
+ C:/Users/Slaff/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32s3/include/hal/include/hal/mcpwm_types.h

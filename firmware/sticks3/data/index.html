@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>BuddyBot — My Robot Friend!</title>
     <link rel="icon" href="data:,">
     <link rel="stylesheet" href="style.css?v=5.0">
@@ -121,28 +121,28 @@
                 </div>
                 
                 <div class="fpv-middle-area" style="flex:1; display:flex; justify-content:space-between; align-items:flex-end; padding:10px; gap:10px; overflow:hidden; pointer-events:none;">
-                    <!-- Left Panel: Manipulator -->
-                    <div class="fpv-left-panel fpv-glass tier-pro" style="display:none; pointer-events:auto; width:auto; padding:10px; flex-direction:row; align-items:center; gap:10px; background:rgba(20,25,40,0.7);">
-                        <div class="fpv-panel-title" style="margin-bottom:0; font-size:0.8rem;">🦾 Arm</div>
-                        <div class="servo-grid" id="servo-manipulator-grid" style="display:flex; gap:8px;">
-                            <!-- Sliders injected by hardware.js -->
-                        </div>
+                <!-- Left Panel: Manipulator -->
+                <div class="fpv-left-panel fpv-glass tier-pro" style="display:none; pointer-events:auto; position:absolute; bottom:15px; left:15px; background:rgba(20,25,40,0.8); border-radius:16px; padding:12px; flex-direction:column; gap:10px;">
+                    <div class="fpv-panel-title" style="margin-bottom:0; font-size:0.9rem; text-align:center;">🦾 Arm</div>
+                    <div class="servo-grid" id="servo-manipulator-grid" style="display:flex; flex-direction:column; gap:8px;">
+                        <!-- Sliders injected by hardware.js -->
                     </div>
-                    <!-- Right Panel: Joystick & Actions -->
-                    <div class="fpv-right-panel" style="pointer-events:auto; flex:1; display:flex; flex-direction:column; justify-content:flex-end; align-items:flex-end; gap:10px;">
-                        <div class="drive-buttons fpv-glass" style="display:flex; gap:8px; padding:8px; flex-wrap:wrap; justify-content:flex-end;">
-                            <button class="action-btn" id="btn-treat" style="padding:10px 15px; font-size:0.9rem;">🍖 Feed</button>
-                            <button class="action-btn" id="btn-voice-cmd" style="padding:10px 15px; font-size:0.9rem;">🎤 Talk</button>
-                            <button class="action-btn" id="btn-dance" style="padding:10px 15px; font-size:0.9rem;">💃 Dance</button>
-                            <button class="action-btn" id="btn-wander" style="padding:10px 15px; font-size:0.9rem;">🧭 Explore</button>
-                            <button class="action-btn" id="btn-vision" style="padding:10px 15px; font-size:0.9rem; display:none;">👁️ Vision</button>
-                        </div>
-                        <div class="drive-layout fpv-glass" style="padding:15px; display:flex; align-items:center; gap:15px;">
-                            <div id="joystick-zone" style="width:150px; height:150px; border-radius:50%; background:radial-gradient(circle, rgba(255,255,255,0.05) 0%, rgba(0,0,0,0.3) 100%); position:relative;"></div>
-                            <div class="throttle-gauge" style="width:40px; height:150px; position:relative; background:rgba(0,0,0,0.4); border-radius:20px; overflow:hidden;">
-                                <div class="throttle-fill" id="throttle-fill" style="width:100%; background:linear-gradient(0deg, var(--neon-cyan), var(--neon-magenta)); height:0%; position:absolute; bottom:0;"></div>
-                                <span class="throttle-label" id="throttle-pct" style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-size:0.8rem; font-weight:bold;">0%</span>
-                            </div>
+                </div>
+
+                <!-- Right Panel: Joystick & Actions -->
+                <div class="fpv-right-panel" style="pointer-events:none; position:absolute; bottom:15px; right:15px; display:flex; flex-direction:column; align-items:flex-end; gap:15px;">
+                    <div class="drive-buttons fpv-glass" style="display:flex; gap:8px; padding:10px; flex-wrap:wrap; justify-content:flex-end; pointer-events:auto; border-radius:16px;">
+                        <button class="action-btn" id="btn-treat" style="padding:12px; font-size:1.1rem; border-radius:12px;">🍖</button>
+                        <button class="action-btn" id="btn-voice-cmd" style="padding:12px; font-size:1.1rem; border-radius:12px;">🎤</button>
+                        <button class="action-btn" id="btn-dance" style="padding:12px; font-size:1.1rem; border-radius:12px;">💃</button>
+                        <button class="action-btn" id="btn-wander" style="padding:12px; font-size:1.1rem; border-radius:12px;">🧭</button>
+                    </div>
+                    
+                    <div class="drive-layout fpv-glass" style="padding:15px; display:flex; align-items:center; gap:15px; pointer-events:auto; border-radius:24px;">
+                        <div id="joystick-zone" style="width:140px; height:140px; border-radius:50%; background:radial-gradient(circle, rgba(255,255,255,0.08) 0%, rgba(0,0,0,0.5) 100%); position:relative; box-shadow: inset 0 0 20px rgba(0,0,0,0.5);"></div>
+                        <div class="throttle-gauge" style="width:35px; height:140px; position:relative; background:rgba(0,0,0,0.6); border-radius:20px; overflow:hidden; border:1px solid rgba(255,255,255,0.1);">
+                            <div class="throttle-fill" id="throttle-fill" style="width:100%; background:linear-gradient(0deg, var(--neon-cyan), var(--neon-magenta)); height:0%; position:absolute; bottom:0; transition: height 0.1s linear;"></div>
+                            <span class="throttle-label" id="throttle-pct" style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-size:0.75rem; font-weight:800; text-shadow: 0 1px 3px rgba(0,0,0,0.8);">0%</span>
                         </div>
                     </div>
                 </div>
@@ -245,8 +245,45 @@
                         <input type="color" id="eye-color-main" value="#ffffff">
                     </div>
                     <div class="form-group">
-                        <label>Eye Background</label>
-                        <input type="color" id="eye-color-bg" value="#000000">
+                        <label>Face Style</label>
+                        <select id="persona-type">
+                            <option value="0">RoboEyes (Classic)</option>
+                            <option value="1">Stack-Chan (Mouth)</option>
+                        </select>
+                    </div>
+                    <!-- New Face Customizer -->
+                    <div class="cfg-group toggle-group">
+                        <label>Show Cheeks</label>
+                        <label class="switch">
+                            <input type="checkbox" id="has-cheeks">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label>Cheek Color</label>
+                        <input type="color" id="cheek-color" value="#ff00ff">
+                    </div>
+                    <div class="form-group">
+                        <label>Mouth Style</label>
+                        <select id="mouth-type">
+                            <option value="0">Hidden</option>
+                            <option value="1">Smile Arc</option>
+                            <option value="2">Flat Line</option>
+                            <option value="3">Frown Arc</option>
+                            <option value="4">Talking (Animated)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Mouth Color</label>
+                        <input type="color" id="mouth-color" value="#ffffff">
+                    </div>
+                    <div class="cfg-group">
+                        <label>Mouth Width: <span id="val-mouth-w">30</span></label>
+                        <input type="range" id="mouth-w" min="10" max="100" value="30">
+                    </div>
+                    <div class="cfg-group">
+                        <label>Mouth Height: <span id="val-mouth-h">10</span></label>
+                        <input type="range" id="mouth-h" min="2" max="50" value="10">
                     </div>
                     <button class="save-btn" id="btn-save-persona">Save Appearance</button>
                 </div>
@@ -340,8 +377,87 @@
             </div>
 
             <div class="card">
+                <div class="card-header"><span>🚗 Drive Hardware</span></div>
+                <div class="settings-form">
+                    <div class="form-row">
+                        <label>Drive Type</label>
+                        <select id="cfg-drive-type" class="cfg-select">
+                            <option value="0">I2C M5 Motors (0x64)</option>
+                            <option value="1">Unit 8Servos (0x25)</option>
+                            <option value="2">GPIO Servos (Continuous)</option>
+                            <option value="3">GPIO H-Bridge (L298N)</option>
+                            <option value="4">TTL Serial (Feetech)</option>
+                        </select>
+                    </div>
+                    <div class="form-row" id="row-ttl-pins" style="display:none;">
+                        <label>TTL TX Pin</label><input type="number" id="cfg-ttl-tx" value="17" class="cfg-num">
+                        <label>TTL RX Pin</label><input type="number" id="cfg-ttl-rx" value="16" class="cfg-num">
+                    </div>
+                    <div class="form-row" id="row-ttl-ids" style="display:none;">
+                        <label>TTL ID Left</label><input type="number" id="cfg-ttl-idl" value="1" class="cfg-num">
+                        <label>TTL ID Right</label><input type="number" id="cfg-ttl-idr" value="2" class="cfg-num">
+                    </div>
+                    <!-- Hidden unless 8Servos selected -->
+                    <div class="form-row drive-cfg-8servo" style="display:none;">
+                        <label>8Servos Left Channel (0-7)</label>
+                        <input type="number" id="cfg-drive-chl" min="0" max="7" value="0">
+                    </div>
+                    <div class="form-row drive-cfg-8servo" style="display:none;">
+                        <label>8Servos Right Channel (0-7)</label>
+                        <input type="number" id="cfg-drive-chr" min="0" max="7" value="1">
+                    </div>
+                    <!-- Hidden unless GPIO selected -->
+                    <div class="form-row drive-cfg-gpio" style="display:none;">
+                        <label>Left Motor Pin 1</label>
+                        <input type="number" id="cfg-drive-pl1" value="1">
+                    </div>
+                    <div class="form-row drive-cfg-hbridge" style="display:none;">
+                        <label>Left Motor Pin 2</label>
+                        <input type="number" id="cfg-drive-pl2" value="2">
+                    </div>
+                    <div class="form-row drive-cfg-gpio" style="display:none;">
+                        <label>Right Motor Pin 1</label>
+                        <input type="number" id="cfg-drive-pr1" value="3">
+                    </div>
+                    <div class="form-row drive-cfg-hbridge" style="display:none;">
+                        <label>Right Motor Pin 2</label>
+                        <input type="number" id="cfg-drive-pr2" value="4">
+                    </div>
+                    <!-- PWM Configs for GPIO Servos -->
+                    <div class="form-row drive-cfg-gpio" style="display:none;">
+                        <label>PWM Frequency (Hz)</label>
+                        <input type="number" id="cfg-pwm-freq" value="50">
+                    </div>
+                    <div class="form-row drive-cfg-gpio" style="display:none;">
+                        <label>PWM Min Pulse (µs)</label>
+                        <input type="number" id="cfg-pwm-min" value="500">
+                    </div>
+                    <div class="form-row drive-cfg-gpio" style="display:none;">
+                        <label>PWM Max Pulse (µs)</label>
+                        <input type="number" id="cfg-pwm-max" value="2500">
+                    </div>
+                    <!-- Continuous Servo Center Offsets -->
+                    <div class="form-row" id="row-center-offset" style="display:none;">
+                        <label>Left Stop Offset (deg)</label>
+                        <input type="number" id="cfg-center-offset-l" value="0">
+                        <label>Right Stop Offset (deg)</label>
+                        <input type="number" id="cfg-center-offset-r" value="0">
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
                 <div class="card-header"><span>⚙️ Hardware</span></div>
                 <div class="settings-form">
+                    <div class="form-row">
+                        <label>Screen Rotation</label>
+                        <select id="cfg-screen-rotation" class="cfg-select">
+                            <option value="0">Portrait</option>
+                            <option value="1">Landscape</option>
+                            <option value="2">Inverted Portrait</option>
+                            <option value="3">Inverted Landscape</option>
+                        </select>
+                    </div>
                     <div class="form-row toggle-row">
                         <label>Enable Camera</label>
                         <button class="toggle-btn" id="cfg-has-cam">OFF</button>
@@ -475,6 +591,22 @@
                         <label>Speaker Volume</label>
                         <input type="range" id="cfg-volume" min="0" max="255" value="128">
                     </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header"><span>?? Sleep Schedule (RTC)</span></div>
+                <div class="settings-form">
+                    <p style="font-size:0.8rem; color:#aaa; margin-top:0;">BuddyBot will enter deep sleep, stop moving, and show circadian eye bags during this window.</p>
+                    <div class="form-row">
+                        <label>Sleep Time</label>
+                        <input type="time" id="cfg-sleep-time" value="22:00" style="background:#2c3e50; color:white; border:none; padding:5px; border-radius:5px;">
+                    </div>
+                    <div class="form-row">
+                        <label>Wake Time</label>
+                        <input type="time" id="cfg-wake-time" value="07:00" style="background:#2c3e50; color:white; border:none; padding:5px; border-radius:5px;">
+                    </div>
+                    <button class="save-btn" onclick="document.getElementById('btn-save-config').click()">Save Schedule</button>
                 </div>
             </div>
 

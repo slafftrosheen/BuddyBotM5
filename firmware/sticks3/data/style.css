@@ -71,20 +71,21 @@ body {
     color: var(--text-primary);
     font-family: var(--font-body);
     height: 100vh;
+    height: 100dvh;
     width: 100vw;
-    overflow-y: auto;
-    overflow-x: hidden;
+    overflow: hidden;
     user-select: none;
     -webkit-user-select: none;
+    overscroll-behavior: none;
 }
 
 #app {
     display: flex;
     flex-direction: column;
-    height: 100vh;
-    max-width: 900px;
-    margin: 0 auto;
+    height: 100%;
+    width: 100%;
     position: relative;
+    overflow: hidden;
 }
 
 /* ── Typography ── */
@@ -205,8 +206,9 @@ h1, h2, h3, .card-header, .bot-name, .tab-label, .big-btn {
     display: none;
     flex: 1;
     overflow-y: auto;
-    padding: 20px;
-    padding-bottom: calc(var(--nav-height) + 30px);
+    overflow-x: hidden;
+    padding: 15px;
+    -webkit-overflow-scrolling: touch;
 }
 .tab-content.active {
     display: flex;
