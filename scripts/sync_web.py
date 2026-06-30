@@ -2,7 +2,7 @@ import os
 import shutil
 
 web_dir = 'C:/Users/Slaff/BuddyBotM5/web'
-targets = ['core', 'sticks3', 'cardputer']
+targets = ['core', 'sticks3', 'cardputer', 'cardputer_adv']
 
 if not os.path.exists(web_dir):
     print(f"Error: {web_dir} not found")

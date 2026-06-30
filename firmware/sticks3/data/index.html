@@ -120,9 +120,9 @@
                     </div>
                 </div>
                 
-                <div class="fpv-middle-area" style="flex:1; display:flex; justify-content:space-between; align-items:flex-end; padding:10px; gap:10px; overflow:hidden; pointer-events:none;">
+                <div class="fpv-middle-area" style="flex:1; display:flex; justify-content:space-between; align-items:flex-end; padding:10px; gap:10px; overflow:hidden; pointer-events:none; width: 100%;">
                 <!-- Left Panel: Manipulator -->
-                <div class="fpv-left-panel fpv-glass tier-pro" style="display:none; pointer-events:auto; position:absolute; bottom:15px; left:15px; background:rgba(20,25,40,0.8); border-radius:16px; padding:12px; flex-direction:column; gap:10px;">
+                <div class="fpv-left-panel fpv-glass tier-pro" style="display:none; pointer-events:auto; background:rgba(20,25,40,0.8); border-radius:16px; padding:12px; flex-direction:column; gap:10px; min-width: 150px; z-index: 10;">
                     <div class="fpv-panel-title" style="margin-bottom:0; font-size:0.9rem; text-align:center;">🦾 Arm</div>
                     <div class="servo-grid" id="servo-manipulator-grid" style="display:flex; flex-direction:column; gap:8px;">
                         <!-- Sliders injected by hardware.js -->
@@ -130,7 +130,7 @@
                 </div>
 
                 <!-- Right Panel: Joystick & Actions -->
-                <div class="fpv-right-panel" style="pointer-events:none; position:absolute; bottom:15px; right:15px; display:flex; flex-direction:column; align-items:flex-end; gap:15px;">
+                <div class="fpv-right-panel" style="pointer-events:none; display:flex; flex-direction:column; align-items:flex-end; gap:15px; z-index: 10;">
                     <div class="drive-buttons fpv-glass" style="display:flex; gap:8px; padding:10px; flex-wrap:wrap; justify-content:flex-end; pointer-events:auto; border-radius:16px;">
                         <button class="action-btn" id="btn-treat" style="padding:12px; font-size:1.1rem; border-radius:12px;">🍖</button>
                         <button class="action-btn" id="btn-voice-cmd" style="padding:12px; font-size:1.1rem; border-radius:12px;">🎤</button>
