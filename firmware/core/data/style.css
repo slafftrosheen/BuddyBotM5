@@ -466,8 +466,7 @@ button:active {
         justify-content: space-evenly;
     }
 }
-    pointer-events: none;
-}
+
 
 .speed-control {
     background: rgba(0,0,0,0.2);

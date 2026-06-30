@@ -196,8 +196,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('val-pres').textContent = `${data.pres.toFixed(0)}hPa`;
                 
                 document.getElementById('val-gas').textContent = `${(data.gas / 1000).toFixed(1)}KΩ`;
-                document.getElementById('bar-gas').style.width = `${Math.min(100, data.gas / 5000)}%`;
+                document.getElementById('bar-gas').style.width = `${Math.min(100, data.gas / 1000)}%`;
                 
+                if (data.tof !== undefined) {
+                    document.getElementById('val-tof').textContent = `${data.tof}mm`;
+                    document.getElementById('bar-tof').style.width = `${Math.min(100, data.tof / 20)}%`;
+                }
+
                 document.getElementById('val-roll').textContent = `${data.roll.toFixed(0)}°`;
                 document.getElementById('bar-roll').style.width = `${50 + (data.roll / 180 * 50)}%`;
                 
@@ -227,6 +232,21 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 3000);
 
 });
+
+
+document.getElementById('btn-say-tts')?.addEventListener('click', () => {
+    const text = document.getElementById('tts-text')?.value;
+    if (text) {
+        fetch('/api/tts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: text })
+        });
+        document.getElementById('tts-text').value = '';
+    }
+});
+
+
 // ═══════════════════════════════════════════════════════
 // BUDDYBOT M5 — HARDWARE (SERVO/MACRO) CONTROLLER
 // ═══════════════════════════════════════════════════════
@@ -364,6 +384,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
 });
+
+
 // ═══════════════════════════════════════════════════════
 // BUDDYBOT M5 — DRIVE CONTROLLER
 // ═══════════════════════════════════════════════════════
@@ -602,6 +624,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 });
+
+
 // ═══════════════════════════════════════════════════════
 // BUDDYBOT M5 — PLAY & GAMES CONTROLLER
 // ═══════════════════════════════════════════════════════
@@ -857,6 +881,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
 });
+
+
 // ═══════════════════════════════════════════════════════
 // BUDDYBOT M5 — BUDDY (VITALS/PERSONA) CONTROLLER
 // ═══════════════════════════════════════════════════════
@@ -952,6 +978,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }, 10000); // Check every 10s
 });
+
+
 // ═══════════════════════════════════════════════════════
 // BUDDYBOT M5 — AI LAB CONTROLLER (Max Tier)
 // v4.0 — Real implementations for Sleep, Guard, Auto-Nav
@@ -985,6 +1013,26 @@ document.addEventListener('DOMContentLoaded', () => {
         }).catch(err => console.error(err));
     });
 
+    // ── TTS Trigger (Speak) ──
+    const btnSayTTS = document.getElementById('btn-say-tts');
+    const ttsText = document.getElementById('tts-text');
+    if (btnSayTTS && ttsText) {
+        btnSayTTS.addEventListener('click', () => {
+            const text = ttsText.value.trim();
+            if (!text) return;
+            
+            fetch('/api/tts', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text: text })
+            }).then(() => {
+                if (window.showAlert) window.showAlert('Speaking...', 'var(--accent-green)');
+                ttsText.value = '';
+            }).catch(err => {
+                if (window.showAlert) window.showAlert('TTS Failed', 'var(--accent-red)');
+            });
+        });
+    }
 
     // ── Vision Trigger (What do you see?) ──
     const btnVision = document.getElementById('btn-vision');
@@ -1360,6 +1408,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
 });
+
+
 // ═══════════════════════════════════════════════════════
 // BUDDYBOT M5 — SETTINGS & CONFIGURATION
 // ═══════════════════════════════════════════════════════
@@ -1400,6 +1450,7 @@ window.populateSettings = function() {
     if (document.getElementById('cfg-has-cam')) setToggleState(document.getElementById('cfg-has-cam'), cfg.hasCam);
     if (document.getElementById('cfg-has-servo')) setToggleState(document.getElementById('cfg-has-servo'), cfg.hasServo);
     if (document.getElementById('cfg-has-pi')) setToggleState(document.getElementById('cfg-has-pi'), cfg.hasPi);
+    if (document.getElementById('cfg-screen-rotation')) document.getElementById('cfg-screen-rotation').value = cfg.screenRotation || 0;
     
     // API Keys
     document.getElementById('cfg-gemini-key').value = cfg.geminiApiKey || '';
@@ -1421,6 +1472,32 @@ window.populateSettings = function() {
     
     setToggleState(document.getElementById('cfg-invert-l'), cfg.motorInvertL);
     setToggleState(document.getElementById('cfg-invert-r'), cfg.motorInvertR);
+
+    // Drive Hardware
+    if (document.getElementById('cfg-drive-type')) {
+        document.getElementById('cfg-drive-type').value = cfg.driveType || 0;
+        document.getElementById('cfg-drive-chl').value = cfg.driveChannelL || 0;
+        document.getElementById('cfg-drive-chr').value = cfg.driveChannelR || 1;
+        document.getElementById('cfg-drive-pl1').value = cfg.drivePinL1 || 1;
+        document.getElementById('cfg-drive-pl2').value = cfg.drivePinL2 || 2;
+        document.getElementById('cfg-drive-pr1').value = cfg.drivePinR1 || 3;
+        document.getElementById('cfg-drive-pr2').value = cfg.drivePinR2 || 4;
+        document.getElementById('cfg-pwm-freq').value = cfg.pwmFreq || 50;
+        document.getElementById('cfg-pwm-min').value = cfg.pwmMin || 500;
+        document.getElementById('cfg-pwm-max').value = cfg.pwmMax || 2500;
+        document.getElementById('cfg-center-offset-l').value = cfg.driveCenterOffsetL || 0;
+        document.getElementById('cfg-center-offset-r').value = cfg.driveCenterOffsetR || 0;
+        if (document.getElementById('cfg-ttl-tx')) {
+            document.getElementById('cfg-ttl-tx').value = cfg.ttlServoTx || 17;
+            document.getElementById('cfg-ttl-rx').value = cfg.ttlServoRx || 16;
+            document.getElementById('cfg-ttl-idl').value = cfg.ttlServoLeftId || 1;
+            document.getElementById('cfg-ttl-idr').value = cfg.ttlServoRightId || 2;
+        }
+        
+        // Trigger visual update
+        document.getElementById('cfg-drive-type').dispatchEvent(new Event('change'));
+    }
+
     
     // Persona
     document.getElementById('blink-rate').value = cfg.blinkRate || 3000;
@@ -1435,6 +1512,17 @@ window.populateSettings = function() {
         document.getElementById('val-eye-fps').textContent = cfg.eyeFps || 60;
         document.getElementById('eye-color-main').value = rgb565ToHex(cfg.eyeColorMain);
         document.getElementById('eye-color-bg').value = rgb565ToHex(cfg.eyeColorBg);
+        if (document.getElementById('persona-type')) document.getElementById('persona-type').value = cfg.personaType || 0;
+        if (document.getElementById('has-cheeks')) setToggleState(document.getElementById('has-cheeks'), cfg.hasCheeks);
+        if (document.getElementById('cheek-color')) document.getElementById('cheek-color').value = rgb565ToHex(cfg.cheekColor);
+        if (document.getElementById('mouth-type')) document.getElementById('mouth-type').value = cfg.mouthType || 0;
+        if (document.getElementById('mouth-color')) document.getElementById('mouth-color').value = rgb565ToHex(cfg.mouthColor);
+        if (document.getElementById('mouth-w')) {
+            document.getElementById('mouth-w').value = cfg.mouthSizeX || 30;
+            document.getElementById('val-mouth-w').textContent = cfg.mouthSizeX || 30;
+            document.getElementById('mouth-h').value = cfg.mouthSizeY || 10;
+            document.getElementById('val-mouth-h').textContent = cfg.mouthSizeY || 10;
+        }
     }
     
     // Misc
@@ -1535,14 +1623,33 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     // Range Sliders display update (Persona)
+    const sendLivePersona = () => {
+        fetch('/api/persona', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                eyeSizeX: parseInt(document.getElementById('eye-w').value),
+                eyeSizeY: parseInt(document.getElementById('eye-h').value)
+            })
+        }).catch(()=>{});
+    };
+
     document.getElementById('eye-w')?.addEventListener('input', (e) => {
         document.getElementById('val-eye-w').textContent = e.target.value;
+        sendLivePersona();
     });
     document.getElementById('eye-h')?.addEventListener('input', (e) => {
         document.getElementById('val-eye-h').textContent = e.target.value;
+        sendLivePersona();
     });
     document.getElementById('eye-fps')?.addEventListener('input', (e) => {
         document.getElementById('val-eye-fps').textContent = e.target.value;
+    });
+    document.getElementById('mouth-w')?.addEventListener('input', (e) => {
+        document.getElementById('val-mouth-w').textContent = e.target.value;
+    });
+    document.getElementById('mouth-h')?.addEventListener('input', (e) => {
+        document.getElementById('val-mouth-h').textContent = e.target.value;
     });
 
     // Save Persona Button
@@ -1552,7 +1659,14 @@ document.addEventListener('DOMContentLoaded', () => {
             eyeSizeY: parseInt(document.getElementById('eye-h').value),
             eyeFps: parseInt(document.getElementById('eye-fps').value),
             eyeColorMain: hexToRgb565(document.getElementById('eye-color-main').value),
-            eyeColorBg: hexToRgb565(document.getElementById('eye-color-bg').value)
+            eyeColorBg: hexToRgb565(document.getElementById('eye-color-bg').value),
+            personaType: parseInt(document.getElementById('persona-type') ? document.getElementById('persona-type').value : 0),
+            hasCheeks: document.getElementById('has-cheeks') ? getToggleState(document.getElementById('has-cheeks')) : false,
+            cheekColor: hexToRgb565(document.getElementById('cheek-color').value),
+            mouthType: parseInt(document.getElementById('mouth-type') ? document.getElementById('mouth-type').value : 0),
+            mouthColor: hexToRgb565(document.getElementById('mouth-color').value),
+            mouthSizeX: parseInt(document.getElementById('mouth-w') ? document.getElementById('mouth-w').value : 30),
+            mouthSizeY: parseInt(document.getElementById('mouth-h') ? document.getElementById('mouth-h').value : 10)
         };
 
         fetch('/api/config', {
@@ -1586,6 +1700,18 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    // Drive Type change listener
+    document.getElementById('cfg-drive-type')?.addEventListener('change', (e) => {
+        const type = parseInt(e.target.value);
+        document.querySelectorAll('.drive-cfg-8servo').forEach(el => el.style.display = (type === 1) ? 'flex' : 'none');
+        document.querySelectorAll('.drive-cfg-gpio').forEach(el => el.style.display = (type === 2 || type === 3) ? 'flex' : 'none');
+        document.querySelectorAll('.drive-cfg-hbridge').forEach(el => el.style.display = (type === 3) ? 'flex' : 'none');
+        if (document.getElementById('row-ttl-pins')) document.getElementById('row-ttl-pins').style.display = (type === 4) ? 'flex' : 'none';
+        if (document.getElementById('row-ttl-ids')) document.getElementById('row-ttl-ids').style.display = (type === 4) ? 'flex' : 'none';
+        const rowCenter = document.getElementById('row-center-offset');
+        if (rowCenter) rowCenter.style.display = (type === 1 || type === 2 || type === 4) ? 'flex' : 'none';
+    });
+
     // Save Button
     document.getElementById('btn-save-config')?.addEventListener('click', () => {
         const payload = {
@@ -1604,7 +1730,25 @@ document.addEventListener('DOMContentLoaded', () => {
             
             camFlip: getToggleState(document.getElementById('cam-flip')),
             camMirror: getToggleState(document.getElementById('cam-mirror')),
-            speakerVolume: parseInt(document.getElementById('cfg-volume').value)
+            speakerVolume: parseInt(document.getElementById('cfg-volume').value),
+            
+            driveType: parseInt(document.getElementById('cfg-drive-type') ? document.getElementById('cfg-drive-type').value : 0),
+            driveChannelL: parseInt(document.getElementById('cfg-drive-chl') ? document.getElementById('cfg-drive-chl').value : 0),
+            driveChannelR: parseInt(document.getElementById('cfg-drive-chr') ? document.getElementById('cfg-drive-chr').value : 1),
+            drivePinL1: parseInt(document.getElementById('cfg-drive-pl1') ? document.getElementById('cfg-drive-pl1').value : 1),
+            drivePinL2: parseInt(document.getElementById('cfg-drive-pl2') ? document.getElementById('cfg-drive-pl2').value : 2),
+            drivePinR1: parseInt(document.getElementById('cfg-drive-pr1') ? document.getElementById('cfg-drive-pr1').value : 3),
+            drivePinR2: parseInt(document.getElementById('cfg-drive-pr2') ? document.getElementById('cfg-drive-pr2').value : 4),
+            pwmFreq: parseInt(document.getElementById('cfg-pwm-freq') ? document.getElementById('cfg-pwm-freq').value : 50),
+            pwmMin: parseInt(document.getElementById('cfg-pwm-min') ? document.getElementById('cfg-pwm-min').value : 500),
+            pwmMax: parseInt(document.getElementById('cfg-pwm-max') ? document.getElementById('cfg-pwm-max').value : 2500),
+            driveCenterOffsetL: parseInt(document.getElementById('cfg-center-offset-l') ? document.getElementById('cfg-center-offset-l').value : 0),
+            driveCenterOffsetR: parseInt(document.getElementById('cfg-center-offset-r') ? document.getElementById('cfg-center-offset-r').value : 0),
+            screenRotation: parseInt(document.getElementById('cfg-screen-rotation') ? document.getElementById('cfg-screen-rotation').value : 0),
+            ttlServoTx: parseInt(document.getElementById('cfg-ttl-tx') ? document.getElementById('cfg-ttl-tx').value : 17),
+            ttlServoRx: parseInt(document.getElementById('cfg-ttl-rx') ? document.getElementById('cfg-ttl-rx').value : 16),
+            ttlServoLeftId: parseInt(document.getElementById('cfg-ttl-idl') ? document.getElementById('cfg-ttl-idl').value : 1),
+            ttlServoRightId: parseInt(document.getElementById('cfg-ttl-idr') ? document.getElementById('cfg-ttl-idr').value : 2)
         };
 
         const ssid1 = document.getElementById('cfg-ssid1').value;
@@ -1669,3 +1813,5 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
 });
+
+

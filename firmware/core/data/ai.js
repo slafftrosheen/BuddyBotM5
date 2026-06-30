@@ -31,6 +31,26 @@ document.addEventListener('DOMContentLoaded', () => {
         }).catch(err => console.error(err));
     });
 
+    // ── TTS Trigger (Speak) ──
+    const btnSayTTS = document.getElementById('btn-say-tts');
+    const ttsText = document.getElementById('tts-text');
+    if (btnSayTTS && ttsText) {
+        btnSayTTS.addEventListener('click', () => {
+            const text = ttsText.value.trim();
+            if (!text) return;
+            
+            fetch('/api/tts', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text: text })
+            }).then(() => {
+                if (window.showAlert) window.showAlert('Speaking...', 'var(--accent-green)');
+                ttsText.value = '';
+            }).catch(err => {
+                if (window.showAlert) window.showAlert('TTS Failed', 'var(--accent-red)');
+            });
+        });
+    }
 
     // ── Vision Trigger (What do you see?) ──
     const btnVision = document.getElementById('btn-vision');
