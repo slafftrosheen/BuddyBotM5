@@ -145,7 +145,7 @@ void loop() {
         configSave();
         needsConfigSave = false;
     }
-    M5.update();
+    M5.update(); updateServer();
     ArduinoOTA.handle();
 
     // Sleep Schedule Check

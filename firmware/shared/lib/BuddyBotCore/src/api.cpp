@@ -12,6 +12,8 @@
 #include "motor.h"
 #include "persona.h"
 #include "sounds.h"
+#include "addons.h"
+#include "Adafruit_BME680.h"
 
 extern float target_speed;
 extern float target_turn;
@@ -37,7 +39,16 @@ uint16_t hexToColor565(String hex) {
     return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
 }
 
+#include "voice.h"
+
+void updateServer() {
+    updateAddons();
+    updateVoice();
+}
+
 void initServer() {
+    initVoice();
+    initAddons();
     // Serve Web UI from SD Card
     server.serveStatic("/", LittleFS, "/").setDefaultFile("index.html").setCacheControl("max-age=0, no-cache, no-store, must-revalidate");
 
@@ -70,7 +81,7 @@ void initServer() {
         }
     });
 
-    // â”€â”€ GET /api/telemetry â”€â”€
+    // ── GET /api/telemetry ──
     server.on("/api/telemetry", HTTP_GET, [](AsyncWebServerRequest *request){
         JsonDocument doc;
         if (bme.performReading()) {
@@ -78,9 +89,17 @@ void initServer() {
             doc["hum"] = bme.humidity;
             doc["pres"] = bme.pressure / 100.0;
             doc["gas"] = bme.gas_resistance;
+        } else if (has_env_unit) {
+            doc["temp"] = addon_env_temp;
+            doc["hum"] = addon_env_hum;
+            doc["pres"] = addon_env_pres;
+            doc["gas"] = 0;
         } else {
             doc["temp"] = 0; doc["hum"] = 0; doc["pres"] = 0; doc["gas"] = 0;
         }
+        
+        if (has_tof_unit) doc["tof"] = addon_tof_dist;
+        
         doc["pitch"] = imu_pitch;
         doc["roll"] = imu_roll;
         doc["heap"] = ESP.getFreeHeap();
@@ -187,6 +206,14 @@ void initServer() {
                     buddyConfig.blinkRate = doc["blinkRate"] | 3000;
                     needsConfigSave = true;
                 }
+                if (!doc["eyeSizeX"].isNull()) {
+                    buddyConfig.eyeSizeX = doc["eyeSizeX"];
+                    needsConfigSave = true;
+                }
+                if (!doc["eyeSizeY"].isNull()) {
+                    buddyConfig.eyeSizeY = doc["eyeSizeY"];
+                    needsConfigSave = true;
+                }
                 
                 // Immediately apply new colors, eye size, or blink rates
                 persona.applyConfig();
@@ -196,6 +223,23 @@ void initServer() {
             } else {
                 request->send(400, "text/plain", "Bad Request");
             }
+        }
+    });
+
+    // ── POST /api/tts ──
+    server.on("/api/tts", HTTP_POST, [](AsyncWebServerRequest *request){
+    }, NULL, [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total){
+        if (index + len == total) {
+            String payload = String((char*)data).substring(0, len);
+            JsonDocument doc;
+            if (!deserializeJson(doc, payload)) {
+                if (!doc["text"].isNull()) {
+                    speakTTS(doc["text"].as<String>());
+                    request->send(200, "text/plain", "TTS Queued");
+                    return;
+                }
+            }
+            request->send(400, "text/plain", "Bad Request");
         }
     });
 

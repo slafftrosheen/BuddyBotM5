@@ -196,8 +196,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('val-pres').textContent = `${data.pres.toFixed(0)}hPa`;
                 
                 document.getElementById('val-gas').textContent = `${(data.gas / 1000).toFixed(1)}KΩ`;
-                document.getElementById('bar-gas').style.width = `${Math.min(100, data.gas / 5000)}%`;
+                document.getElementById('bar-gas').style.width = `${Math.min(100, data.gas / 1000)}%`;
                 
+                if (data.tof !== undefined) {
+                    document.getElementById('val-tof').textContent = `${data.tof}mm`;
+                    document.getElementById('bar-tof').style.width = `${Math.min(100, data.tof / 20)}%`;
+                }
+
                 document.getElementById('val-roll').textContent = `${data.roll.toFixed(0)}°`;
                 document.getElementById('bar-roll').style.width = `${50 + (data.roll / 180 * 50)}%`;
                 
@@ -226,4 +231,17 @@ document.addEventListener('DOMContentLoaded', () => {
             });
     }, 3000);
 
+});
+
+
+document.getElementById('btn-say-tts')?.addEventListener('click', () => {
+    const text = document.getElementById('tts-text')?.value;
+    if (text) {
+        fetch('/api/tts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: text })
+        });
+        document.getElementById('tts-text').value = '';
+    }
 });

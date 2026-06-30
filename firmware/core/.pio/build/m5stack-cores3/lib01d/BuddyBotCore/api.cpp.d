@@ -351,9 +351,11 @@
  C:/Users/Slaff/BuddyBotM5/firmware/shared/lib/BuddyBotCore/src/persona.h \
  C:/Users/Slaff/BuddyBotM5/firmware/shared/lib/BuddyBotCore/src/M5Stack_RoboEyes.h \
  C:/Users/Slaff/BuddyBotM5/firmware/shared/lib/BuddyBotCore/src/sounds.h \
+ C:/Users/Slaff/BuddyBotM5/firmware/shared/lib/BuddyBotCore/src/addons.h \
  .pio/libdeps/m5stack-cores3/Adafruit\ BME680\ Library/Adafruit_BME680.h \
  .pio/libdeps/m5stack-cores3/Adafruit\ BusIO/Adafruit_I2CDevice.h \
  .pio/libdeps/m5stack-cores3/Adafruit\ BusIO/Adafruit_SPIDevice.h \
  .pio/libdeps/m5stack-cores3/Adafruit\ Unified\ Sensor/Adafruit_Sensor.h \
  .pio/libdeps/m5stack-cores3/Adafruit\ BME680\ Library/bme68x.h \
- .pio/libdeps/m5stack-cores3/Adafruit\ BME680\ Library/bme68x_defs.h
+ .pio/libdeps/m5stack-cores3/Adafruit\ BME680\ Library/bme68x_defs.h \
+ C:/Users/Slaff/BuddyBotM5/firmware/shared/lib/BuddyBotCore/src/voice.h

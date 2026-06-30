@@ -168,6 +168,27 @@ void BuddyPersona::update() {
         }
     }
     
+    // Add Glancing/Darting Eyes for EMO_NORMAL
+    static unsigned long lastGlanceTime = 0;
+    static int glanceInterval = 3000;
+    if (currentEmotion == EMO_NORMAL && millis() - lastGlanceTime > glanceInterval) {
+        lastGlanceTime = millis();
+        glanceInterval = random(2000, 6000); // Wait 2-6 seconds before glancing again
+        
+        // 20% chance to look around, 80% chance to look forward
+        if (random(100) < 20) {
+            roboEyes.xOffset = random(-30, 30);
+            roboEyes.yOffset = random(-15, 15);
+        } else {
+            roboEyes.xOffset = 0;
+            roboEyes.yOffset = 0;
+        }
+    } else if (currentEmotion != EMO_NORMAL) {
+        // Reset offsets if emotion changes
+        roboEyes.xOffset = 0;
+        roboEyes.yOffset = 0;
+    }
+    
     // Handle talking animation
     if (isTalking) {
         if (millis() - lastTalkToggleTime > 100) {

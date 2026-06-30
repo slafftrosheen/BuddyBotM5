@@ -70,6 +70,8 @@ class RoboEyes {
   int mouthOpenState = 0;
   int saccadeX = 0;
   int saccadeY = 0;
+  int xOffset = 0;
+  int yOffset = 0;
 
  private:
   LovyanGFX *_display;

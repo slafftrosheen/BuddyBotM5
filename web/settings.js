@@ -211,11 +211,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     // Range Sliders display update (Persona)
+    const sendLivePersona = () => {
+        fetch('/api/persona', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                eyeSizeX: parseInt(document.getElementById('eye-w').value),
+                eyeSizeY: parseInt(document.getElementById('eye-h').value)
+            })
+        }).catch(()=>{});
+    };
+
     document.getElementById('eye-w')?.addEventListener('input', (e) => {
         document.getElementById('val-eye-w').textContent = e.target.value;
+        sendLivePersona();
     });
     document.getElementById('eye-h')?.addEventListener('input', (e) => {
         document.getElementById('val-eye-h').textContent = e.target.value;
+        sendLivePersona();
     });
     document.getElementById('eye-fps')?.addEventListener('input', (e) => {
         document.getElementById('val-eye-fps').textContent = e.target.value;

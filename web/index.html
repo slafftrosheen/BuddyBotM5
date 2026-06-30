@@ -318,6 +318,11 @@
                         <div class="sensor-bar-track"><div class="sensor-bar" id="bar-gas" style="width:0%"></div></div>
                     </div>
                     <div class="sensor-item">
+                        <span class="sensor-icon">📏</span>
+                        <span class="sensor-val" id="val-tof">--mm</span>
+                        <div class="sensor-bar-track"><div class="sensor-bar" id="bar-tof" style="width:0%"></div></div>
+                    </div>
+                    <div class="sensor-item">
                         <span class="sensor-icon">↔️</span>
                         <span class="sensor-val" id="val-roll">--°</span>
                         <div class="sensor-bar-track"><div class="sensor-bar imu" id="bar-roll" style="width:50%"></div></div>
@@ -333,12 +338,18 @@
 
         
 
-        <!-- ── AI LAB TAB (Max only) ── -->
+        <!-- 🤖🤖 AI LAB TAB (Max only) 🤖🤖 -->
         <section class="tab-content" id="tab-ai">
             <div class="card">
                 <div class="card-header"><span>🧠 AI Powers</span></div>
+                <div class="settings-form" style="margin-bottom: 15px;">
+                    <div class="form-row">
+                        <input type="text" id="tts-text" placeholder="Type something to say..." style="flex:1;">
+                        <button class="game-btn" id="btn-say-tts" style="margin-left:5px;">💬 Speak</button>
+                    </div>
+                </div>
                 <div class="ai-grid">
-                    <button class="ai-btn" id="btn-auto-nav">🛣️ Auto-Navigate</button>
+                    <button class="ai-btn" id="btn-auto-nav">🚦 Auto-Navigate</button>
                     <button class="ai-btn" id="btn-face-track">👤 Face Follow</button>
                     <button class="ai-btn" id="btn-sentry-patrol">👮 Sentry Patrol</button>
                     <button class="ai-btn" id="btn-sleep-cycle">💤 Sleep Timer</button>
