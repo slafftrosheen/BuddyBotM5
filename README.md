@@ -68,4 +68,19 @@ You can now flash fresh `.bin` firmware files and `littlefs.bin` filesystem imag
 6. The CoreS3 will reboot automatically once finished!
 
 ---
+
+## 📦 Bin Packaging & Web Flasher Release Guide
+
+To release firmware that can be flashed directly from Chromium using the **gr1mnir.sec** Web Flasher, you must properly package the unmerged partition binaries (bootloader, partitions, firmware, and littlefs).
+
+1. Ensure PlatformIO is installed globally (`pip install platformio`).
+2. Run the `package_builds.py` script at the root of the repository:
+   ```bash
+   python package_builds.py
+   ```
+3. This script will automatically compile the LittleFS filesystem, build the firmware, and export 4 distinct `.bin` files for each target into the `LatestBuilds` directory (e.g., `BuddyBot_m5stack-cores3_firmware.bin`, `_littlefs.bin`, `_bootloader.bin`, `_partitions.bin`).
+4. **Create a GitHub Release** on your repository and upload all the `.bin` files from `LatestBuilds`.
+5. The Web Flasher will detect these files and safely flash them at the correct offsets (`0x0`, `0x8000`, `0x10000`, `0x290000`) without breaking the ESP32-S3 bootloader hash!
+
+---
 *Created by Slaff & Antigravity IDE.*

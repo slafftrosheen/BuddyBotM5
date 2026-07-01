@@ -1,0 +1,39 @@
+name: Build and Release Bins
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install PlatformIO
+        run: |
+          python -m pip install --upgrade pip
+          pip install platformio
+          
+      - name: Run Build and Package Script
+        run: python package_builds.py
+
+      - name: Create or Update Rolling Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest-build
+          name: "Latest BuddyBotM5 Build"
+          body: "Automated rolling release from the latest commit on main. These unmerged bins are ready for the Web Flasher."
+          prerelease: true
+          files: LatestBuilds/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
